@@ -131,7 +131,13 @@ function App() {
       .maybeSingle()
 
     if (error) throw error
-    setProfile((data as Profile | null) ?? null)
+    setProfile(
+      (data as Profile | null) ?? {
+        id: userId,
+        full_name: null,
+        role: 'member',
+      },
+    )
   }, [])
 
   const loadDevices = useCallback(async () => {
