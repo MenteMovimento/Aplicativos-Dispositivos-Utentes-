@@ -47,10 +47,58 @@ const dateFormatter = new Intl.DateTimeFormat('pt-PT', {
   timeStyle: 'short',
 })
 
+const demoStorageKey = 'mentemovimento-demo-devices'
+
+const initialDemoDevices: Device[] = [
+  {
+    id: 'demo-1',
+    name: 'Portatil rececao',
+    serial_number: 'MM-PT-001',
+    model: 'Lenovo ThinkPad T14',
+    location: 'Rececao',
+    status: 'active',
+    notes: 'Registo de exemplo em modo demonstracao.',
+    created_by: null,
+    updated_by: null,
+    created_at: '2026-05-22T09:00:00.000Z',
+    updated_at: '2026-05-22T09:00:00.000Z',
+  },
+  {
+    id: 'demo-2',
+    name: 'Tablet sala de formacao',
+    serial_number: 'MM-TB-014',
+    model: 'Samsung Galaxy Tab A9',
+    location: 'Sala 2',
+    status: 'maintenance',
+    notes: 'Exemplo para testar filtros e edicao.',
+    created_by: null,
+    updated_by: null,
+    created_at: '2026-05-21T14:30:00.000Z',
+    updated_at: '2026-05-21T14:30:00.000Z',
+  },
+]
+
+const createDemoId = () => globalThis.crypto?.randomUUID?.() ?? `demo-${Date.now()}`
+
+const loadDemoDevices = () => {
+  try {
+    const storedDevices = window.localStorage.getItem(demoStorageKey)
+    return storedDevices ? (JSON.parse(storedDevices) as Device[]) : initialDemoDevices
+  } catch {
+    return initialDemoDevices
+  }
+}
+
+const persistDemoDevices = (nextDevices: Device[]) => {
+  window.localStorage.setItem(demoStorageKey, JSON.stringify(nextDevices))
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [devices, setDevices] = useState<Device[]>([])
+  const [devices, setDevices] = useState<Device[]>(() =>
+    isSupabaseConfigured ? [] : loadDemoDevices(),
+  )
   const [isLoading, setIsLoading] = useState(isSupabaseConfigured)
   const [isSaving, setIsSaving] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
@@ -67,7 +115,11 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
 
-  const canManageDevices = profile?.role === 'admin' || profile?.role === 'manager'
+  const isDemoMode = !isSupabaseConfigured
+  const currentRole: Profile['role'] = isDemoMode ? 'admin' : (profile?.role ?? 'member')
+  const currentEmail = session?.user.email ?? 'demo@mentemovimento.pt'
+  const isAuthenticated = isDemoMode || Boolean(session)
+  const canManageDevices = isDemoMode || currentRole === 'admin' || currentRole === 'manager'
 
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return
@@ -227,6 +279,11 @@ function App() {
   }
 
   const handleSignOut = async () => {
+    if (isDemoMode) {
+      setNotice('Modo demonstracao ativo. Configura o Supabase para usar login real.')
+      return
+    }
+
     if (!supabase) return
 
     await supabase.auth.signOut()
@@ -239,7 +296,7 @@ function App() {
   const handleDeviceSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!supabase || !session || !canManageDevices) return
+    if (!canManageDevices) return
 
     setIsSaving(true)
     setAuthError(null)
@@ -252,13 +309,52 @@ function App() {
       location: deviceForm.location.trim() || null,
       status: deviceForm.status,
       notes: deviceForm.notes.trim() || null,
-      updated_by: session.user.id,
+      updated_by: session?.user.id ?? null,
     }
 
     try {
       if (!payload.name || !payload.serial_number || !payload.model) {
         throw new Error('Preenche o nome, numero de serie e modelo.')
       }
+
+      if (isDemoMode) {
+        const now = new Date().toISOString()
+
+        if (editingId) {
+          const nextDevices = devices.map((device) =>
+            device.id === editingId
+              ? {
+                  ...device,
+                  ...payload,
+                  updated_at: now,
+                }
+              : device,
+          )
+
+          setDevices(nextDevices)
+          persistDemoDevices(nextDevices)
+          setNotice('Dispositivo atualizado em modo demonstracao.')
+        } else {
+          const nextDevice: Device = {
+            id: createDemoId(),
+            ...payload,
+            created_by: null,
+            created_at: now,
+            updated_at: now,
+          }
+          const nextDevices = [nextDevice, ...devices]
+
+          setDevices(nextDevices)
+          persistDemoDevices(nextDevices)
+          setNotice('Dispositivo adicionado em modo demonstracao.')
+        }
+
+        setDeviceForm(emptyDeviceForm)
+        setEditingId(null)
+        return
+      }
+
+      if (!supabase || !session) return
 
       if (editingId) {
         const { data, error } = await supabase
@@ -318,13 +414,28 @@ function App() {
   }
 
   const deleteDevice = async (device: Device) => {
-    if (!supabase || !canManageDevices) return
+    if (!canManageDevices) return
 
     const confirmed = window.confirm(`Apagar "${device.name}"?`)
     if (!confirmed) return
 
     setAuthError(null)
     setNotice(null)
+
+    if (isDemoMode) {
+      const nextDevices = devices.filter((item) => item.id !== device.id)
+      setDevices(nextDevices)
+      persistDemoDevices(nextDevices)
+
+      if (editingId === device.id) {
+        cancelEditing()
+      }
+
+      setNotice('Dispositivo apagado em modo demonstracao.')
+      return
+    }
+
+    if (!supabase) return
 
     const { error } = await supabase.from('devices').delete().eq('id', device.id)
 
@@ -342,26 +453,7 @@ function App() {
     setNotice('Dispositivo apagado.')
   }
 
-  if (!isSupabaseConfigured) {
-    return (
-      <main className="setup-shell">
-        <section className="setup-panel">
-          <KeyRound aria-hidden="true" />
-          <h1>Configurar Supabase</h1>
-          <p>
-            Cria o ficheiro <code>.env.local</code> com as variaveis do projeto Supabase e reinicia
-            o servidor.
-          </p>
-          <pre>
-            {`VITE_SUPABASE_URL=https://o-teu-projeto.supabase.co
-VITE_SUPABASE_ANON_KEY=a_tua_chave_anon`}
-          </pre>
-        </section>
-      </main>
-    )
-  }
-
-  if (!session) {
+  if (!isAuthenticated) {
     return (
       <main className="auth-shell">
         <section className="auth-panel" aria-labelledby="auth-title">
@@ -460,13 +552,26 @@ VITE_SUPABASE_ANON_KEY=a_tua_chave_anon`}
           <h1>Gestor de dispositivos</h1>
         </div>
         <div className="account-box">
-          <span className="role-badge">{roleLabels[profile?.role ?? 'member']}</span>
-          <span>{session.user.email}</span>
+          <span className="role-badge">{roleLabels[currentRole]}</span>
+          <span>{currentEmail}</span>
           <button type="button" className="icon-button" onClick={handleSignOut} title="Sair">
             <LogOut aria-hidden="true" />
           </button>
         </div>
       </header>
+
+      {isDemoMode && (
+        <section className="demo-banner">
+          <div>
+            <strong>Modo demonstracao</strong>
+            <span>
+              Podes adicionar, editar e apagar dispositivos. Os dados ficam guardados neste
+              navegador ate configurares o Supabase.
+            </span>
+          </div>
+          <code>.env.local</code>
+        </section>
+      )}
 
       <section className="stats-grid" aria-label="Resumo dos dispositivos">
         <article>
@@ -605,7 +710,14 @@ VITE_SUPABASE_ANON_KEY=a_tua_chave_anon`}
             <button
               type="button"
               className="icon-button"
-              onClick={() => session && void refreshData(session)}
+              onClick={() => {
+                if (isDemoMode) {
+                  setNotice('Modo demonstracao atualizado.')
+                  return
+                }
+
+                if (session) void refreshData(session)
+              }}
               title="Atualizar"
             >
               <RefreshCw aria-hidden="true" />

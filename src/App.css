@@ -312,6 +312,33 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #ead7ad;
+  border-radius: 8px;
+  color: #4f3815;
+  background: #fff7e6;
+}
+
+.demo-banner div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.demo-banner code {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--primary-strong);
+  background: rgba(255, 255, 255, 0.7);
+}
+
 .role-badge,
 .status-pill {
   display: inline-flex;
@@ -501,6 +528,11 @@ tbody tr:last-child td {
   .account-box {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .demo-banner {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .stats-grid,
