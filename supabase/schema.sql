@@ -120,3 +120,5 @@ on public.devices
 for delete
 to authenticated
 using (true);
+
+notify pgrst, 'reload schema';

@@ -52,6 +52,9 @@ const isMissingEmailColumnError = (error) => {
   const message = getErrorMessage(error).toLowerCase()
   return (
     message.includes('profiles.email') ||
+    (message.includes('schema cache') &&
+      message.includes('email') &&
+      message.includes('profiles')) ||
     (message.includes('column') && message.includes('email') && message.includes('does not exist'))
   )
 }
