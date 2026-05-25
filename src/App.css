@@ -221,6 +221,7 @@ textarea:focus {
 
 .primary-action,
 .ghost-action,
+.danger-action,
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -263,6 +264,26 @@ textarea:focus {
 
 .ghost-action:hover {
   border-color: var(--brand-cyan);
+}
+
+.danger-action {
+  min-height: 40px;
+  padding: 0 12px;
+  color: var(--danger);
+  border-color: #efb8b1;
+  background: var(--danger-soft);
+  white-space: nowrap;
+}
+
+.danger-action:hover {
+  color: #ffffff;
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.danger-action svg {
+  width: 18px;
+  height: 18px;
 }
 
 .icon-button {
@@ -498,7 +519,8 @@ textarea:focus {
   gap: 8px;
 }
 
-.list-actions .ghost-action {
+.list-actions .ghost-action,
+.list-actions .danger-action {
   min-height: 40px;
   padding: 0 12px;
   white-space: nowrap;
@@ -789,7 +811,8 @@ tbody tr:last-child td {
     justify-content: flex-start;
   }
 
-  .list-actions .ghost-action {
+  .list-actions .ghost-action,
+  .list-actions .danger-action {
     flex: 1 1 150px;
   }
 }

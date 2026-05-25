@@ -475,6 +475,56 @@ function App() {
     setNotice('Dispositivo apagado.')
   }
 
+  const deleteAllDevices = async () => {
+    if (!canManageDevices) return
+
+    if (devices.length === 0) {
+      setNotice('Nao ha dispositivos para apagar.')
+      return
+    }
+
+    const firstConfirmation = window.confirm(
+      `Vais apagar TODOS os ${devices.length} dispositivos. Esta acao nao pode ser desfeita. Continuar?`,
+    )
+    if (!firstConfirmation) return
+
+    const typedConfirmation = window.prompt('Para confirmar, escreve APAGAR')
+    if (typedConfirmation !== 'APAGAR') {
+      setNotice('Eliminacao cancelada. Confirmacao incorreta.')
+      return
+    }
+
+    setAuthError(null)
+    setNotice(null)
+
+    if (isDemoMode) {
+      setDevices([])
+      persistDemoDevices([])
+      cancelEditing()
+      setNotice('Todos os dispositivos foram apagados em modo demonstracao.')
+      return
+    }
+
+    if (!supabase) return
+
+    const { error } = await supabase
+      .from('devices')
+      .delete()
+      .in(
+        'id',
+        devices.map((device) => device.id),
+      )
+
+    if (error) {
+      setAuthError(error.message)
+      return
+    }
+
+    setDevices([])
+    cancelEditing()
+    setNotice('Todos os dispositivos foram apagados.')
+  }
+
   const exportDevicesCsv = () => {
     if (filteredDevices.length === 0) {
       setNotice('Nao ha dispositivos visiveis para exportar.')
@@ -910,6 +960,16 @@ function App() {
                     <Upload aria-hidden="true" />
                   )}
                   Importar CSV
+                </button>
+              )}
+              {canManageDevices && (
+                <button
+                  type="button"
+                  className="danger-action"
+                  onClick={() => void deleteAllDevices()}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Apagar tudo
                 </button>
               )}
               <button
