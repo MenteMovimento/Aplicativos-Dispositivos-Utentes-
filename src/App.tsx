@@ -63,13 +63,97 @@ const roleLabels: Record<Profile['role'], string> = {
   member: 'Membro',
 }
 
+const authEmailCooldownSeconds = 60
+const authCooldownStorageKey = 'mentemovimento-auth-email-cooldowns'
+
+const stripOuterWhitespace = (value: string) => value.replace(/^\s+|\s+$/g, '')
+const normalizeEmail = (value: string) => value.toLowerCase()
+
+type AuthCooldownAction = 'signup' | 'resend'
+
+const getCooldowns = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(authCooldownStorageKey) ?? '{}') as Record<
+      string,
+      number
+    >
+  } catch {
+    return {}
+  }
+}
+
+const getCooldownKey = (action: AuthCooldownAction, email: string) =>
+  `${action}:${normalizeEmail(email)}`
+
+const getCooldownUntil = (action: AuthCooldownAction, email: string) =>
+  getCooldowns()[getCooldownKey(action, email)] ?? 0
+
+const setCooldownUntil = (action: AuthCooldownAction, email: string) => {
+  const cooldowns = getCooldowns()
+  const nextUntil = Date.now() + authEmailCooldownSeconds * 1000
+
+  cooldowns[getCooldownKey(action, email)] = nextUntil
+  window.localStorage.setItem(authCooldownStorageKey, JSON.stringify(cooldowns))
+
+  return nextUntil
+}
+
+const getRemainingSeconds = (until: number, now: number) =>
+  Math.max(0, Math.ceil((until - now) / 1000))
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error ?? '')
+
+const getErrorStatus = (error: unknown) => {
+  if (!error || typeof error !== 'object' || !('status' in error)) return undefined
+
+  const status = (error as { status?: unknown }).status
+  return typeof status === 'number' ? status : undefined
+}
+
+const isEmailRateLimitError = (error: unknown) => {
+  const message = getErrorMessage(error).toLowerCase()
+  return getErrorStatus(error) === 429 || message.includes('email rate limit')
+}
+
+const isEmailNotConfirmedError = (error: unknown) =>
+  getErrorMessage(error).toLowerCase().includes('email not confirmed')
+
+const isExistingAccountError = (error: unknown) => {
+  const message = getErrorMessage(error).toLowerCase()
+  return message.includes('already registered') || message.includes('already exists')
+}
+
+const getFriendlyAuthError = (error: unknown) => {
+  if (isEmailRateLimitError(error)) {
+    return 'O Supabase bloqueou temporariamente o envio de emails. Aguarda alguns minutos antes de pedir outro email de confirmacao.'
+  }
+
+  if (isEmailNotConfirmedError(error)) {
+    return 'Este email ja tem conta, mas ainda precisa de confirmacao. Confirma no email ou usa Reenviar confirmacao.'
+  }
+
+  const message = getErrorMessage(error)
+  if (message.toLowerCase().includes('invalid login credentials')) {
+    return 'Email ou palavra-passe incorretos.'
+  }
+
+  if (message.toLowerCase().includes('email logins are disabled')) {
+    return 'O login por email esta desativado no Supabase. Ativa o provider Email em Authentication > Providers.'
+  }
+
+  return message || 'Nao foi possivel autenticar.'
+}
+
 const manualSections = [
   {
     title: '1. Entrar no sistema',
     steps: [
       'Abre o site da Vercel e entra com o email e palavra-passe criados no Supabase.',
-      'Contas Administrador e Gestor podem criar, editar, importar, exportar e apagar dispositivos.',
-      'Contas Membro conseguem consultar os dispositivos, mas nao conseguem alterar dados.',
+      'Se ja existir uma sessao ativa, o site abre diretamente no painel.',
+      'Se o email ja estiver registado, usa Entrar em vez de criar conta novamente.',
+      'Se o Supabase pedir confirmacao, usa o botao Reenviar confirmacao apenas depois do cooldown.',
+      'Todos os utilizadores autenticados conseguem gerir dispositivos; a area Utilizadores fica reservada a Administradores.',
     ],
   },
   {
@@ -231,7 +315,7 @@ const formatProfileDate = (value?: string) => {
 }
 
 const getProfileDisplayName = (userProfile: Profile) =>
-  userProfile.full_name?.trim() || 'Sem nome'
+  stripOuterWhitespace(userProfile.full_name ?? '') || 'Sem nome'
 
 const emptyCreateUserForm = {
   fullName: '',
@@ -253,9 +337,11 @@ function App() {
   const [isSaving, setIsSaving] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [isResendingConfirmation, setIsResendingConfirmation] = useState(false)
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authLoading, setAuthLoading] = useState(false)
+  const [authClock, setAuthClock] = useState(() => Date.now())
   const [authForm, setAuthForm] = useState({
     email: '',
     password: '',
@@ -263,6 +349,9 @@ function App() {
   })
   const [authError, setAuthError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState('')
+  const [signupCooldownUntil, setSignupCooldownUntil] = useState(0)
+  const [resendCooldownUntil, setResendCooldownUntil] = useState(0)
   const [deviceForm, setDeviceForm] = useState<DeviceForm>(emptyDeviceForm)
   const [createUserForm, setCreateUserForm] = useState(emptyCreateUserForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -277,9 +366,12 @@ function App() {
   const currentProfileId = isDemoMode ? 'demo-admin' : profile?.id
   const currentEmail = session?.user.email ?? 'demo@mentemovimento.pt'
   const isAuthenticated = isDemoMode || Boolean(session)
-  const canManageDevices = isDemoMode || currentRole === 'admin' || currentRole === 'manager'
+  const canManageDevices = isAuthenticated
   const canManageUsers = isDemoMode || currentRole === 'admin'
   const selectedView = canManageUsers ? activeView : 'devices'
+  const currentAuthEmail = normalizeEmail(authForm.email)
+  const signupCooldownRemaining = getRemainingSeconds(signupCooldownUntil, authClock)
+  const resendCooldownRemaining = getRemainingSeconds(resendCooldownUntil, authClock)
 
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return
@@ -296,7 +388,7 @@ function App() {
         id: userId,
         email: null,
         full_name: null,
-        role: 'member',
+        role: 'admin',
       },
     )
   }, [])
@@ -412,6 +504,14 @@ function App() {
   }, [refreshData])
 
   useEffect(() => {
+    const timer = window.setInterval(() => setAuthClock(Date.now()), 1000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!isManualOpen) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -428,7 +528,7 @@ function App() {
   }, [isManualOpen])
 
   const filteredDevices = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase()
+    const query = stripOuterWhitespace(searchTerm).toLowerCase()
 
     return devices.filter((device) => {
       const matchesStatus = statusFilter === 'all' || device.status === statusFilter
@@ -453,49 +553,184 @@ function App() {
     [devices],
   )
 
+  const checkEmailRegistered = useCallback(async (email: string) => {
+    if (!email) return false
+
+    try {
+      const response = await fetch('/api/auth-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) return false
+
+      const result = (await response.json()) as { canCheck?: boolean; exists?: boolean }
+      return Boolean(result.canCheck && result.exists)
+    } catch {
+      return false
+    }
+  }, [])
+
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!supabase) return
+
+    const email = normalizeEmail(authForm.email)
 
     setAuthError(null)
     setNotice(null)
     setAuthLoading(true)
 
     try {
+      const { data: existingSession } = await supabase.auth.getSession()
+
+      if (existingSession.session) {
+        setSession(existingSession.session)
+        await refreshData(existingSession.session)
+        setNotice('Sessao ja ativa. Entraste diretamente no painel.')
+        return
+      }
+
       if (authForm.password.length < 6) {
         throw new Error('A palavra-passe deve ter pelo menos 6 caracteres.')
       }
 
       if (authMode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({
-          email: authForm.email,
+          email,
           password: authForm.password,
         })
 
         if (error) throw error
+        setPendingConfirmationEmail('')
       } else {
+        const storedSignupCooldown = getCooldownUntil('signup', email)
+        setSignupCooldownUntil(storedSignupCooldown)
+
+        if (getRemainingSeconds(storedSignupCooldown, Date.now()) > 0) {
+          setPendingConfirmationEmail(email)
+          setNotice(
+            `Ja foi enviado um email de confirmacao recentemente. Aguarda ${getRemainingSeconds(
+              storedSignupCooldown,
+              Date.now(),
+            )} segundos antes de tentar novamente.`,
+          )
+          return
+        }
+
+        const isRegistered = await checkEmailRegistered(email)
+
+        if (isRegistered) {
+          setAuthMode('login')
+          setNotice('Este email ja esta registado. Usa Entrar para aceder.')
+          return
+        }
+
         const { data, error } = await supabase.auth.signUp({
-          email: authForm.email,
+          email,
           password: authForm.password,
           options: {
             data: {
               full_name: authForm.fullName,
             },
+            emailRedirectTo: window.location.origin,
           },
         })
 
         if (error) throw error
 
+        if (data.user?.identities && data.user.identities.length === 0) {
+          setAuthMode('login')
+          setNotice('Este email ja esta registado. Usa Entrar para aceder.')
+          return
+        }
+
         if (data.user && !data.session) {
-          setNotice('Conta criada. Confirma o email antes de entrar.')
+          setPendingConfirmationEmail(email)
+          setSignupCooldownUntil(setCooldownUntil('signup', email))
+          setResendCooldownUntil(setCooldownUntil('resend', email))
+          setNotice(
+            'Conta criada. Confirma o email antes de entrar. Evitei novos envios automaticos para nao bater no limite do Supabase.',
+          )
         } else {
+          setPendingConfirmationEmail('')
           setNotice('Conta criada com sucesso.')
         }
       }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Nao foi possivel autenticar.')
+      if (isExistingAccountError(error)) {
+        setAuthMode('login')
+        setNotice('Este email ja esta registado. Usa Entrar para aceder.')
+        return
+      }
+
+      if (isEmailNotConfirmedError(error)) {
+        setPendingConfirmationEmail(email)
+        setResendCooldownUntil(getCooldownUntil('resend', email))
+      }
+
+      if (isEmailRateLimitError(error)) {
+        setPendingConfirmationEmail(email)
+        const nextCooldown = setCooldownUntil(authMode === 'signup' ? 'signup' : 'resend', email)
+        setSignupCooldownUntil(nextCooldown)
+        setResendCooldownUntil(nextCooldown)
+      }
+
+      setAuthError(getFriendlyAuthError(error))
     } finally {
       setAuthLoading(false)
+    }
+  }
+
+  const resendConfirmationEmail = async () => {
+    if (!supabase) return
+
+    const email = pendingConfirmationEmail || currentAuthEmail
+    const storedCooldown = getCooldownUntil('resend', email)
+    const remaining = getRemainingSeconds(storedCooldown, Date.now())
+
+    if (!email) {
+      setAuthError('Indica o email antes de pedir nova confirmacao.')
+      return
+    }
+
+    setResendCooldownUntil(storedCooldown)
+
+    if (remaining > 0) {
+      setNotice(`Aguarda ${remaining} segundos antes de reenviar o email de confirmacao.`)
+      return
+    }
+
+    setIsResendingConfirmation(true)
+    setAuthError(null)
+    setNotice(null)
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      })
+
+      if (error) throw error
+
+      setPendingConfirmationEmail(email)
+      setResendCooldownUntil(setCooldownUntil('resend', email))
+      setNotice('Email de confirmacao reenviado. Verifica a caixa de entrada e o spam.')
+    } catch (error) {
+      if (isEmailRateLimitError(error)) {
+        const nextCooldown = setCooldownUntil('resend', email)
+        setResendCooldownUntil(nextCooldown)
+      }
+
+      setAuthError(getFriendlyAuthError(error))
+    } finally {
+      setIsResendingConfirmation(false)
     }
   }
 
@@ -510,6 +745,7 @@ function App() {
     await supabase.auth.signOut()
     setNotice(null)
     setAuthError(null)
+    setPendingConfirmationEmail('')
     setDeviceForm(emptyDeviceForm)
     setEditingId(null)
   }
@@ -525,10 +761,10 @@ function App() {
 
     const repairDetails = formToRepairDetails(deviceForm)
     const payload = {
-      name: deviceForm.name.trim(),
-      serial_number: deviceForm.serial_number.trim(),
-      model: deviceForm.model.trim(),
-      location: deviceForm.brand.trim() || null,
+      name: stripOuterWhitespace(deviceForm.name),
+      serial_number: stripOuterWhitespace(deviceForm.serial_number),
+      model: stripOuterWhitespace(deviceForm.model),
+      location: stripOuterWhitespace(deviceForm.brand) || null,
       status: parseCsvStatus(repairDetails.repair_status),
       notes: encodeRepairDetails(repairDetails),
       updated_by: session?.user.id ?? null,
@@ -724,8 +960,8 @@ function App() {
     if (!canManageUsers) return
 
     const payload = {
-      fullName: createUserForm.fullName.trim(),
-      email: createUserForm.email.trim().toLowerCase(),
+      fullName: stripOuterWhitespace(createUserForm.fullName),
+      email: normalizeEmail(createUserForm.email),
       password: createUserForm.password,
     }
 
@@ -886,7 +1122,9 @@ function App() {
 
           results.data.forEach((row, index) => {
             const importedDevice = csvRowToDeviceForm(row)
-            const hasAnyValue = Object.values(row).some((value) => String(value ?? '').trim())
+            const hasAnyValue = Object.values(row).some((value) =>
+              Boolean(stripOuterWhitespace(String(value ?? ''))),
+            )
 
             if (!hasAnyValue) {
               return
@@ -1049,14 +1287,23 @@ function App() {
             <button
               type="button"
               className={authMode === 'login' ? 'active' : ''}
-              onClick={() => setAuthMode('login')}
+              onClick={() => {
+                setAuthMode('login')
+                setAuthError(null)
+                setNotice(null)
+              }}
             >
               Entrar
             </button>
             <button
               type="button"
               className={authMode === 'signup' ? 'active' : ''}
-              onClick={() => setAuthMode('signup')}
+              onClick={() => {
+                setAuthMode('signup')
+                setAuthError(null)
+                setNotice(null)
+                setSignupCooldownUntil(getCooldownUntil('signup', currentAuthEmail))
+              }}
             >
               Criar conta
             </button>
@@ -1082,9 +1329,13 @@ function App() {
                 type="email"
                 autoComplete="email"
                 value={authForm.email}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextEmail = normalizeEmail(event.target.value)
+
                   setAuthForm((current) => ({ ...current, email: event.target.value }))
-                }
+                  setSignupCooldownUntil(getCooldownUntil('signup', nextEmail))
+                  setResendCooldownUntil(getCooldownUntil('resend', nextEmail))
+                }}
               />
             </label>
             <label>
@@ -1114,9 +1365,41 @@ function App() {
               </p>
             )}
 
-            <button className="primary-action" type="submit" disabled={authLoading}>
+            {pendingConfirmationEmail && (
+              <div className="confirmation-panel">
+                <div>
+                  <strong>Email por confirmar</strong>
+                  <p>{pendingConfirmationEmail}</p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-action"
+                  onClick={() => void resendConfirmationEmail()}
+                  disabled={isResendingConfirmation || resendCooldownRemaining > 0}
+                >
+                  {isResendingConfirmation ? (
+                    <Loader2 className="spin" aria-hidden="true" />
+                  ) : (
+                    <RefreshCw aria-hidden="true" />
+                  )}
+                  {resendCooldownRemaining > 0
+                    ? `Reenviar em ${resendCooldownRemaining}s`
+                    : 'Reenviar confirmacao'}
+                </button>
+              </div>
+            )}
+
+            <button
+              className="primary-action"
+              type="submit"
+              disabled={authLoading || (authMode === 'signup' && signupCooldownRemaining > 0)}
+            >
               {authLoading ? <Loader2 className="spin" aria-hidden="true" /> : <KeyRound />}
-              {authMode === 'login' ? 'Entrar' : 'Criar conta'}
+              {authMode === 'login'
+                ? 'Entrar'
+                : signupCooldownRemaining > 0
+                  ? `Aguarda ${signupCooldownRemaining}s`
+                  : 'Criar conta'}
             </button>
           </form>
         </section>

@@ -4,8 +4,10 @@
 
 1. Abre o site da Vercel.
 2. Entra com o email e palavra-passe criados no Supabase.
-3. Contas `Administrador` e `Gestor` podem criar, editar, importar, exportar e apagar dispositivos.
-4. Contas `Membro` conseguem consultar, mas nao alterar dados.
+3. Se ja tiveres sessao ativa, o site abre diretamente no painel.
+4. Se o email ja existir, usa `Entrar` em vez de criar outra conta.
+5. Se aparecer limite de emails, aguarda o cooldown antes de pedir novo email de confirmacao.
+6. Todos os utilizadores autenticados conseguem gerir dispositivos.
 
 ## 2. Criar um dispositivo
 

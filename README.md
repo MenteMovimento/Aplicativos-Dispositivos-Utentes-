@@ -5,6 +5,7 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 ## Funcionalidades
 
 - Login e criacao de conta com Supabase Auth.
+- Mensagens amigaveis para limite de emails e cooldown para reenviar confirmacao.
 - Listagem, pesquisa e filtro por estado.
 - Criacao, edicao e remocao de dispositivos.
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
@@ -44,6 +45,8 @@ SUPABASE_SERVICE_ROLE_KEY=a_tua_chave_service_role
 ```
 
 Todas as contas novas ficam automaticamente com perfil `admin`.
+
+Se usares confirmacao por email no Supabase Auth, o site mostra um botao `Reenviar confirmacao` com cooldown para evitar o erro `email rate limit exceeded`. Para testes em aula, podes desativar a confirmacao de email em `Authentication > Providers > Email`; para producao, o ideal e configurar SMTP proprio.
 
 Para promover uma conta para gestor, executa no SQL Editor:
 

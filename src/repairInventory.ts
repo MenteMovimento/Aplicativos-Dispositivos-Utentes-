@@ -21,6 +21,7 @@ export type RepairFieldSection = {
 type ImportCsvRow = Record<string, string | undefined>
 
 const repairNotesPrefix = '__MENTEMOVIMENTO_REPAIR_V1__'
+const stripOuterWhitespace = (value: string) => value.replace(/^\s+|\s+$/g, '')
 
 export const emptyRepairDetails: RepairDetails = {
   entry_date: '',
@@ -262,7 +263,7 @@ const readCsvField = (row: ImportCsvRow, aliases: string[]) => {
     normalizedAliases.includes(normalizeCsvKey(key)),
   )
 
-  return String(match?.[1] ?? '').trim()
+  return stripOuterWhitespace(String(match?.[1] ?? ''))
 }
 
 export const encodeRepairDetails = (details: RepairDetails) =>

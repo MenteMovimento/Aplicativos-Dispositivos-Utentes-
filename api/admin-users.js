@@ -78,9 +78,9 @@ export default async function handler(request, response) {
 
   try {
     const body = await readBody(request)
-    const email = String(body.email ?? '').trim().toLowerCase()
+    const email = String(body.email ?? '').toLowerCase()
     const password = String(body.password ?? '')
-    const fullName = String(body.fullName ?? '').trim()
+    const fullName = String(body.fullName ?? '')
 
     if (!email || !password || !fullName) {
       sendJson(response, 400, { error: 'Nome, email e palavra-passe sao obrigatorios.' })

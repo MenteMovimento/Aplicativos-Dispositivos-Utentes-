@@ -102,21 +102,21 @@ for select
 to authenticated
 using (true);
 
-create policy "Managers can create devices"
+create policy "Authenticated members can create devices"
 on public.devices
 for insert
 to authenticated
-with check (public.current_member_role() in ('admin', 'manager'));
+with check (true);
 
-create policy "Managers can update devices"
+create policy "Authenticated members can update devices"
 on public.devices
 for update
 to authenticated
-using (public.current_member_role() in ('admin', 'manager'))
-with check (public.current_member_role() in ('admin', 'manager'));
+using (true)
+with check (true);
 
-create policy "Managers can delete devices"
+create policy "Authenticated members can delete devices"
 on public.devices
 for delete
 to authenticated
-using (public.current_member_role() in ('admin', 'manager'));
+using (true);

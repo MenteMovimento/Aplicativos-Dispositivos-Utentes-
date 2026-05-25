@@ -367,6 +367,32 @@ textarea:focus {
   background: var(--success-soft);
 }
 
+.confirmation-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.confirmation-panel strong {
+  display: block;
+  color: var(--brand-blue);
+  font-size: 0.92rem;
+}
+
+.confirmation-panel p {
+  overflow-wrap: anywhere;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.confirmation-panel .ghost-action {
+  width: 100%;
+}
+
 .spin {
   animation: spin 0.9s linear infinite;
 }

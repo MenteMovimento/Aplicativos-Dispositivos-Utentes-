@@ -6,8 +6,10 @@ type BrandLogoProps = {
 }
 
 export function BrandLogo({ compact = false, className = '' }: BrandLogoProps) {
+  const classes = ['brand-logo', compact ? 'compact' : '', className].filter(Boolean).join(' ')
+
   return (
-    <div className={`brand-logo ${compact ? 'compact' : ''} ${className}`.trim()}>
+    <div className={classes}>
       <img className="brand-image" src={mentemovimentoLogo} alt="Mentemovimento" />
     </div>
   )
