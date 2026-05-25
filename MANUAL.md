@@ -44,10 +44,10 @@
 
 ## 7. Gerir utilizadores
 
-1. Entra com uma conta `Administrador`.
+1. Entra com uma conta confirmada.
 2. Abre a aba `Utilizadores`.
 3. Em `Criar utilizador`, preenche nome, email e palavra-passe temporaria.
 4. Clica em `Criar utilizador` e entrega o email/palavra-passe ao colega.
 5. A conta nova fica automaticamente como `Administrador`.
 6. Na tabela de utilizadores, podes mudar a permissao mais tarde.
-7. A tua propria permissao fica bloqueada para evitares perder acesso de administrador.
+7. A tua propria permissao fica bloqueada para evitares perder acesso ao painel.

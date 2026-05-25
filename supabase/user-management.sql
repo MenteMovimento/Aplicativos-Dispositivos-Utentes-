@@ -42,6 +42,8 @@ set role = 'admin';
 
 drop policy if exists "Admins can read all profiles" on public.profiles;
 drop policy if exists "Admins can update profiles" on public.profiles;
+drop policy if exists "Authenticated members can read profiles" on public.profiles;
+drop policy if exists "Authenticated members can update profiles" on public.profiles;
 drop policy if exists "Managers can create devices" on public.devices;
 drop policy if exists "Managers can update devices" on public.devices;
 drop policy if exists "Managers can delete devices" on public.devices;
@@ -49,18 +51,18 @@ drop policy if exists "Authenticated members can create devices" on public.devic
 drop policy if exists "Authenticated members can update devices" on public.devices;
 drop policy if exists "Authenticated members can delete devices" on public.devices;
 
-create policy "Admins can read all profiles"
+create policy "Authenticated members can read profiles"
 on public.profiles
 for select
 to authenticated
-using (public.current_member_role() = 'admin');
+using (true);
 
-create policy "Admins can update profiles"
+create policy "Authenticated members can update profiles"
 on public.profiles
 for update
 to authenticated
-using (public.current_member_role() = 'admin')
-with check (public.current_member_role() = 'admin');
+using (true)
+with check (true);
 
 create policy "Authenticated members can create devices"
 on public.devices

@@ -101,8 +101,36 @@ const setCooldownUntil = (action: AuthCooldownAction, email: string) => {
 const getRemainingSeconds = (until: number, now: number) =>
   Math.max(0, Math.ceil((until - now) / 1000))
 
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error ?? '')
+const getErrorMessage = (error: unknown) => {
+  if (!error) return ''
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+
+  if (typeof error === 'object') {
+    const source = error as {
+      code?: unknown
+      details?: unknown
+      error?: unknown
+      error_description?: unknown
+      hint?: unknown
+      message?: unknown
+    }
+    const parts = [
+      source.message,
+      source.error_description,
+      source.error,
+      source.details,
+      source.hint,
+    ]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .filter((part, index, list) => list.indexOf(part) === index)
+
+    if (parts.length > 0) return parts.join(' ')
+    if (typeof source.code === 'string') return source.code
+  }
+
+  return String(error)
+}
 
 const getErrorStatus = (error: unknown) => {
   if (!error || typeof error !== 'object' || !('status' in error)) return undefined
@@ -145,6 +173,37 @@ const getFriendlyAuthError = (error: unknown) => {
   return message || 'Nao foi possivel autenticar.'
 }
 
+const isMissingEmailColumnError = (error: unknown) => {
+  const message = getErrorMessage(error).toLowerCase()
+  return (
+    message.includes('profiles.email') ||
+    (message.includes('column') && message.includes('email') && message.includes('does not exist'))
+  )
+}
+
+const getFriendlyDataError = (error: unknown) => {
+  const message = getErrorMessage(error)
+  const lowerMessage = message.toLowerCase()
+
+  if (isMissingEmailColumnError(error)) {
+    return 'A base de dados ainda nao foi atualizada para a gestao de utilizadores. Executa o ficheiro supabase/user-management.sql no SQL Editor do Supabase.'
+  }
+
+  if (lowerMessage.includes('row-level security') || lowerMessage.includes('permission denied')) {
+    return 'O Supabase bloqueou o pedido por permissoes/RLS. Executa supabase/user-management.sql e volta a entrar na conta.'
+  }
+
+  if (lowerMessage.includes('relation') && lowerMessage.includes('does not exist')) {
+    return 'A tabela necessaria ainda nao existe no Supabase. Executa o schema SQL do projeto no SQL Editor.'
+  }
+
+  if (lowerMessage.includes('jwt') && lowerMessage.includes('expired')) {
+    return 'A tua sessao expirou. Sai e volta a entrar.'
+  }
+
+  return message || 'Nao foi possivel carregar os dados.'
+}
+
 const manualSections = [
   {
     title: '1. Entrar no sistema',
@@ -153,7 +212,7 @@ const manualSections = [
       'Se ja existir uma sessao ativa, o site abre diretamente no painel.',
       'Se o email ja estiver registado, usa Entrar em vez de criar conta novamente.',
       'Se o Supabase pedir confirmacao, usa o botao Reenviar confirmacao apenas depois do cooldown.',
-      'Todos os utilizadores autenticados conseguem gerir dispositivos; a area Utilizadores fica reservada a Administradores.',
+      'Todos os utilizadores autenticados conseguem gerir dispositivos e abrir a area Utilizadores.',
     ],
   },
   {
@@ -200,11 +259,11 @@ const manualSections = [
   {
     title: '7. Gerir utilizadores',
     steps: [
-      'Entra com uma conta Administrador e abre a aba Utilizadores.',
+      'Entra com uma conta confirmada e abre a aba Utilizadores.',
       'Preenche nome, email e palavra-passe temporaria no formulario Criar utilizador.',
       'Todas as contas criadas nesta area entram automaticamente como Administrador.',
       'Na tabela, podes alterar a permissão para Administrador, Gestor ou Membro depois da criacao.',
-      'A tua própria permissão fica bloqueada para evitar perderes acesso de administrador.',
+      'A tua propria permissao fica bloqueada para evitar perderes acesso ao painel.',
     ],
   },
 ]
@@ -367,14 +426,21 @@ function App() {
   const currentEmail = session?.user.email ?? 'demo@mentemovimento.pt'
   const isAuthenticated = isDemoMode || Boolean(session)
   const canManageDevices = isAuthenticated
-  const canManageUsers = isDemoMode || currentRole === 'admin'
+  const canManageUsers = isAuthenticated
   const selectedView = canManageUsers ? activeView : 'devices'
   const currentAuthEmail = normalizeEmail(authForm.email)
   const signupCooldownRemaining = getRemainingSeconds(signupCooldownUntil, authClock)
   const resendCooldownRemaining = getRemainingSeconds(resendCooldownUntil, authClock)
 
-  const loadProfile = useCallback(async (userId: string) => {
+  const loadProfile = useCallback(async (userId: string, userEmail?: string | null) => {
     if (!supabase) return
+
+    const fallbackProfile: Profile = {
+      id: userId,
+      email: userEmail ?? null,
+      full_name: null,
+      role: 'admin',
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -382,15 +448,35 @@ function App() {
       .eq('id', userId)
       .maybeSingle()
 
-    if (error) throw error
-    setProfile(
-      (data as Profile | null) ?? {
-        id: userId,
-        email: null,
-        full_name: null,
-        role: 'admin',
-      },
-    )
+    if (error && isMissingEmailColumnError(error)) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('profiles')
+        .select('id, full_name, role')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (fallbackError) {
+        setProfile(fallbackProfile)
+        return
+      }
+
+      setProfile(
+        fallbackData
+          ? ({
+              ...(fallbackData as Omit<Profile, 'email'>),
+              email: userEmail ?? null,
+            } as Profile)
+          : fallbackProfile,
+      )
+      return
+    }
+
+    if (error) {
+      setProfile(fallbackProfile)
+      return
+    }
+
+    setProfile((data as Profile | null) ?? fallbackProfile)
   }, [])
 
   const loadDevices = useCallback(async () => {
@@ -411,16 +497,21 @@ function App() {
       return
     }
 
-    if (!supabase) return
+    if (!session) return
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, role, created_at, updated_at')
-      .order('created_at', { ascending: true })
+    const response = await fetch('/api/admin-users', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
+    const result = (await response.json()) as { error?: string; profiles?: Profile[] }
 
-    if (error) throw error
-    setProfiles((data as Profile[]) ?? [])
-  }, [isDemoMode])
+    if (!response.ok || !result.profiles) {
+      throw new Error(result.error ?? 'Nao foi possivel carregar os utilizadores.')
+    }
+
+    setProfiles(result.profiles)
+  }, [isDemoMode, session])
 
   const refreshData = useCallback(
     async (currentSession: Session) => {
@@ -428,9 +519,10 @@ function App() {
       setAuthError(null)
 
       try {
-        await Promise.all([loadProfile(currentSession.user.id), loadDevices()])
+        await loadProfile(currentSession.user.id, currentSession.user.email)
+        await loadDevices()
       } catch (error) {
-        setAuthError(error instanceof Error ? error.message : 'Nao foi possivel carregar os dados.')
+        setAuthError(getFriendlyDataError(error))
       } finally {
         setIsLoading(false)
       }
@@ -447,11 +539,7 @@ function App() {
     try {
       await loadProfiles()
     } catch (error) {
-      setAuthError(
-        error instanceof Error
-          ? error.message
-          : 'Nao foi possivel carregar os utilizadores.',
-      )
+      setAuthError(getFriendlyDataError(error))
     } finally {
       setIsUsersLoading(false)
     }
@@ -1021,7 +1109,7 @@ function App() {
       setCreateUserForm(emptyCreateUserForm)
       setNotice('Utilizador criado com a permissao definida.')
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Nao foi possivel criar o utilizador.')
+      setAuthError(getFriendlyDataError(error))
     } finally {
       setIsCreatingUser(false)
     }
@@ -1052,27 +1140,32 @@ function App() {
         return
       }
 
-      if (!supabase) return
+      if (!session) return
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ role: nextRole })
-        .eq('id', targetProfile.id)
-        .select('id, email, full_name, role, created_at, updated_at')
-        .single()
+      const response = await fetch('/api/admin-users', {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profileId: targetProfile.id,
+          role: nextRole,
+        }),
+      })
+      const result = (await response.json()) as { error?: string; profile?: Profile }
 
-      if (error) throw error
+      if (!response.ok || !result.profile) {
+        throw new Error(result.error ?? 'Nao foi possivel atualizar a permissao.')
+      }
 
+      const data = result.profile
       setProfiles((currentProfiles) =>
         currentProfiles.map((item) => (item.id === targetProfile.id ? (data as Profile) : item)),
       )
       setNotice(`Permissao de ${getProfileDisplayName(targetProfile)} atualizada.`)
     } catch (error) {
-      setAuthError(
-        error instanceof Error
-          ? error.message
-          : 'Nao foi possivel atualizar a permissao do utilizador.',
-      )
+      setAuthError(getFriendlyDataError(error))
     } finally {
       setSavingProfileId(null)
     }

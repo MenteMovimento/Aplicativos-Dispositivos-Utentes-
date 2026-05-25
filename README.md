@@ -10,8 +10,8 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 - Criacao, edicao e remocao de dispositivos.
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
 - Importacao e exportacao CSV compativel com Google Sheets.
-- Regras de acesso com perfis: `admin`, `manager` e `member`.
-- Area de utilizadores para administradores gerirem permissoes.
+- Contas autenticadas conseguem gerir dispositivos.
+- Area de utilizadores para criar contas e gerir permissoes.
 
 ## Google Sheets
 
@@ -48,15 +48,15 @@ Todas as contas novas ficam automaticamente com perfil `admin`.
 
 Se usares confirmacao por email no Supabase Auth, o site mostra um botao `Reenviar confirmacao` com cooldown para evitar o erro `email rate limit exceeded`. Para testes em aula, podes desativar a confirmacao de email em `Authentication > Providers > Email`; para producao, o ideal e configurar SMTP proprio.
 
-Para promover uma conta para gestor, executa no SQL Editor:
+Para corrigir contas antigas e permissões/RLS num projeto ja existente, executa o conteudo de `supabase/user-management.sql` no SQL Editor. Esse ficheiro coloca os perfis existentes como `admin`, permite que contas autenticadas usem dispositivos e prepara a area de utilizadores.
+
+Para promover uma conta para gestor manualmente, executa no SQL Editor:
 
 ```sql
 update public.profiles
 set role = 'manager'
 where id = 'ID_DO_UTILIZADOR';
 ```
-
-Para ativar a area de gestao de utilizadores num projeto Supabase ja existente, executa tambem o conteudo de `supabase/user-management.sql` no SQL Editor.
 
 A chave `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas na Vercel ou no ambiente do servidor. Nunca uses essa chave com prefixo `VITE_`.
 
