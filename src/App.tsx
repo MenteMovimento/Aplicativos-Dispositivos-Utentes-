@@ -29,7 +29,20 @@ import {
 import './App.css'
 import { BrandLogo } from './components/BrandLogo'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import type { Device, DeviceForm, DeviceStatus, Profile } from './types'
+import {
+  csvRowToDeviceForm,
+  deviceToCsvRow,
+  deviceToForm,
+  emptyRepairDetails,
+  encodeRepairDetails,
+  formToRepairDetails,
+  getRepairTableValue,
+  parseCsvStatus,
+  repairCsvHeaders,
+  repairFormSections,
+  repairTableColumns,
+} from './repairInventory'
+import type { Device, DeviceForm, DeviceStatus, RepairColumnKey, Profile } from './types'
 
 const deviceStatuses: DeviceStatus[] = ['active', 'maintenance', 'retired']
 
@@ -49,41 +62,9 @@ const emptyDeviceForm: DeviceForm = {
   name: '',
   serial_number: '',
   model: '',
-  location: '',
+  brand: '',
   status: 'active',
-  notes: '',
-}
-
-const dateFormatter = new Intl.DateTimeFormat('pt-PT', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-})
-
-type ImportCsvRow = Record<string, string | undefined>
-
-const normalizeCsvKey = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-
-const readCsvField = (row: ImportCsvRow, aliases: string[]) => {
-  const normalizedAliases = aliases.map(normalizeCsvKey)
-  const match = Object.entries(row).find(([key]) =>
-    normalizedAliases.includes(normalizeCsvKey(key)),
-  )
-
-  return String(match?.[1] ?? '').trim()
-}
-
-const parseCsvStatus = (value: string): DeviceStatus => {
-  const status = normalizeCsvKey(value)
-
-  if (status === 'manutencao' || status === 'maintenance') return 'maintenance'
-  if (status === 'arquivado' || status === 'retired' || status === 'inativo') return 'retired'
-
-  return 'active'
+  repair: emptyRepairDetails,
 }
 
 const demoStorageKey = 'mentemovimento-demo-devices'
@@ -260,7 +241,7 @@ function App() {
       const matchesStatus = statusFilter === 'all' || device.status === statusFilter
       const matchesSearch =
         query.length === 0 ||
-        [device.name, device.serial_number, device.model, device.location ?? '']
+        [device.name, device.serial_number, device.model, device.location ?? '', device.notes ?? '']
           .join(' ')
           .toLowerCase()
           .includes(query)
@@ -349,13 +330,14 @@ function App() {
     setAuthError(null)
     setNotice(null)
 
+    const repairDetails = formToRepairDetails(deviceForm)
     const payload = {
       name: deviceForm.name.trim(),
       serial_number: deviceForm.serial_number.trim(),
       model: deviceForm.model.trim(),
-      location: deviceForm.location.trim() || null,
-      status: deviceForm.status,
-      notes: deviceForm.notes.trim() || null,
+      location: deviceForm.brand.trim() || null,
+      status: parseCsvStatus(repairDetails.repair_status),
+      notes: encodeRepairDetails(repairDetails),
       updated_by: session?.user.id ?? null,
     }
 
@@ -444,14 +426,7 @@ function App() {
 
   const startEditing = (device: Device) => {
     setEditingId(device.id)
-    setDeviceForm({
-      name: device.name,
-      serial_number: device.serial_number,
-      model: device.model,
-      location: device.location ?? '',
-      status: device.status,
-      notes: device.notes ?? '',
-    })
+    setDeviceForm(deviceToForm(device))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -506,18 +481,10 @@ function App() {
       return
     }
 
-    const csv = unparse(
-      filteredDevices.map((device) => ({
-        ID: device.name,
-        'Numero de serie': device.serial_number,
-        Modelo: device.model,
-        Local: device.location ?? '',
-        Estado: statusLabels[device.status],
-        Notas: device.notes ?? '',
-        Atualizado: dateFormatter.format(new Date(device.updated_at)),
-      })),
-      { quotes: true },
-    )
+    const csv = unparse(filteredDevices.map(deviceToCsvRow), {
+      columns: repairCsvHeaders,
+      quotes: true,
+    })
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -539,7 +506,7 @@ function App() {
     setAuthError(null)
     setNotice(null)
 
-    parse<ImportCsvRow>(file, {
+    parse<Record<string, string | undefined>>(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
@@ -551,19 +518,7 @@ function App() {
           const importedBySerial = new Map<string, DeviceForm>()
 
           results.data.forEach((row, index) => {
-            const importedDevice: DeviceForm = {
-              name: readCsvField(row, ['ID', 'Nome', 'Identificador']),
-              serial_number: readCsvField(row, [
-                'Numero de serie',
-                'Número de série',
-                'Serial',
-                'Serial number',
-              ]),
-              model: readCsvField(row, ['Modelo', 'Model']),
-              location: readCsvField(row, ['Local', 'Localizacao', 'Localização', 'Location']),
-              status: parseCsvStatus(readCsvField(row, ['Estado', 'Status'])),
-              notes: readCsvField(row, ['Notas', 'Observacoes', 'Observações', 'Notes']),
-            }
+            const importedDevice = csvRowToDeviceForm(row)
 
             if (!importedDevice.name || !importedDevice.serial_number || !importedDevice.model) {
               throw new Error(`Linha ${index + 2}: ID, Numero de serie e Modelo sao obrigatorios.`)
@@ -592,9 +547,9 @@ function App() {
                 name: importedDevice.name,
                 serial_number: importedDevice.serial_number,
                 model: importedDevice.model,
-                location: importedDevice.location || null,
-                status: importedDevice.status,
-                notes: importedDevice.notes || null,
+                location: importedDevice.brand || null,
+                status: parseCsvStatus(importedDevice.repair.repair_status),
+                notes: encodeRepairDetails(formToRepairDetails(importedDevice)),
                 created_by: existingDevice?.created_by ?? null,
                 updated_by: null,
                 created_at: existingDevice?.created_at ?? now,
@@ -619,9 +574,9 @@ function App() {
               name: device.name,
               serial_number: device.serial_number,
               model: device.model,
-              location: device.location || null,
-              status: device.status,
-              notes: device.notes || null,
+              location: device.brand || null,
+              status: parseCsvStatus(device.repair.repair_status),
+              notes: encodeRepairDetails(formToRepairDetails(device)),
               created_by: session.user.id,
               updated_by: session.user.id,
             })),
@@ -643,6 +598,17 @@ function App() {
         setIsImporting(false)
       },
     })
+  }
+
+  const updateRepairField = (key: RepairColumnKey, value: string) => {
+    setDeviceForm((current) => ({
+      ...current,
+      status: key === 'repair_status' ? parseCsvStatus(value) : current.status,
+      repair: {
+        ...current.repair,
+        [key]: value,
+      },
+    }))
   }
 
   if (!isAuthenticated) {
@@ -796,85 +762,98 @@ function App() {
 
           {canManageDevices ? (
             <form className="device-form" onSubmit={handleDeviceSubmit}>
-              <label>
-                ID
-                <input
-                  required
-                  placeholder="Ex: PC-Rececao-01"
-                  value={deviceForm.name}
-                  onChange={(event) =>
-                    setDeviceForm((current) => ({ ...current, name: event.target.value }))
-                  }
-                />
-              </label>
+              <div className="form-section span-2">
+                <h3>Identificação</h3>
+                <div className="section-grid">
+                  <label>
+                    ID
+                    <input
+                      required
+                      placeholder="Ex: 1"
+                      value={deviceForm.name}
+                      onChange={(event) =>
+                        setDeviceForm((current) => ({ ...current, name: event.target.value }))
+                      }
+                    />
+                  </label>
 
-              <label>
-                Numero de serie
-                <input
-                  required
-                  placeholder="Ex: SN123456"
-                  value={deviceForm.serial_number}
-                  onChange={(event) =>
-                    setDeviceForm((current) => ({
-                      ...current,
-                      serial_number: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+                  <label>
+                    Data Entrada
+                    <input
+                      placeholder="Ex: 15/04/2026"
+                      value={deviceForm.repair.entry_date}
+                      onChange={(event) => updateRepairField('entry_date', event.target.value)}
+                    />
+                  </label>
 
-              <label>
-                Modelo
-                <input
-                  required
-                  placeholder="Ex: Lenovo ThinkPad T14"
-                  value={deviceForm.model}
-                  onChange={(event) =>
-                    setDeviceForm((current) => ({ ...current, model: event.target.value }))
-                  }
-                />
-              </label>
+                  <label>
+                    Marca
+                    <input
+                      placeholder="Ex: Lenovo"
+                      value={deviceForm.brand}
+                      onChange={(event) =>
+                        setDeviceForm((current) => ({
+                          ...current,
+                          brand: event.target.value,
+                          repair: { ...current.repair, brand: event.target.value },
+                        }))
+                      }
+                    />
+                  </label>
 
-              <label>
-                Local
-                <input
-                  placeholder="Ex: Rececao"
-                  value={deviceForm.location}
-                  onChange={(event) =>
-                    setDeviceForm((current) => ({ ...current, location: event.target.value }))
-                  }
-                />
-              </label>
+                  <label>
+                    Modelo
+                    <input
+                      required
+                      placeholder="Ex: ThinkPad"
+                      value={deviceForm.model}
+                      onChange={(event) =>
+                        setDeviceForm((current) => ({ ...current, model: event.target.value }))
+                      }
+                    />
+                  </label>
 
-              <label>
-                Estado
-                <select
-                  value={deviceForm.status}
-                  onChange={(event) =>
-                    setDeviceForm((current) => ({
-                      ...current,
-                      status: event.target.value as DeviceStatus,
-                    }))
-                  }
-                >
-                  {deviceStatuses.map((status) => (
-                    <option key={status} value={status}>
-                      {statusLabels[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <label>
+                    Nº Série
+                    <input
+                      required
+                      placeholder="Ex: PF-09UN6N"
+                      value={deviceForm.serial_number}
+                      onChange={(event) =>
+                        setDeviceForm((current) => ({
+                          ...current,
+                          serial_number: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
 
-              <label className="span-2">
-                Notas
-                <textarea
-                  rows={4}
-                  value={deviceForm.notes}
-                  onChange={(event) =>
-                    setDeviceForm((current) => ({ ...current, notes: event.target.value }))
-                  }
-                />
-              </label>
+              {repairFormSections.map((section) => (
+                <div className="form-section span-2" key={section.title}>
+                  <h3>{section.title}</h3>
+                  <div className="section-grid">
+                    {section.fields.map((field) => (
+                      <label className={field.multiline ? 'span-2' : ''} key={field.key}>
+                        {field.label}
+                        {field.multiline ? (
+                          <textarea
+                            rows={3}
+                            value={deviceForm.repair[field.key]}
+                            onChange={(event) => updateRepairField(field.key, event.target.value)}
+                          />
+                        ) : (
+                          <input
+                            value={deviceForm.repair[field.key]}
+                            onChange={(event) => updateRepairField(field.key, event.target.value)}
+                          />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               <button className="primary-action span-2" type="submit" disabled={isSaving}>
                 {isSaving ? (
@@ -994,42 +973,40 @@ function App() {
             </div>
           ) : (
             <div className="table-wrap">
-              <table>
+              <table className={`repair-table ${canManageDevices ? 'has-actions' : ''}`}>
                 <colgroup>
-                  <col className="col-device-id" />
-                  <col className="col-serial" />
-                  <col className="col-model" />
-                  <col className="col-location" />
-                  <col className="col-status" />
-                  <col className="col-updated" />
+                  {repairTableColumns.map((column) => (
+                    <col key={column.key} style={{ width: column.width }} />
+                  ))}
                   {canManageDevices && <col className="col-actions" />}
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Numero de serie</th>
-                    <th>Modelo</th>
-                    <th>Local</th>
-                    <th>Estado</th>
-                    <th>Atualizado</th>
+                    {repairTableColumns.map((column) => (
+                      <th key={column.key}>{column.label}</th>
+                    ))}
                     {canManageDevices && <th aria-label="Acoes" />}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDevices.map((device) => (
                     <tr key={device.id}>
-                      <td className="device-id-cell" title={device.name}>
-                        {device.name}
-                      </td>
-                      <td title={device.serial_number}>{device.serial_number}</td>
-                      <td title={device.model}>{device.model}</td>
-                      <td title={device.location ?? '-'}>{device.location ?? '-'}</td>
-                      <td>
-                        <span className={`status-pill ${device.status}`}>
-                          {statusLabels[device.status]}
-                        </span>
-                      </td>
-                      <td>{dateFormatter.format(new Date(device.updated_at))}</td>
+                      {repairTableColumns.map((column) => {
+                        const value = getRepairTableValue(device, column)
+                        return (
+                          <td
+                            className={column.key === 'name' ? 'device-id-cell' : ''}
+                            key={column.key}
+                            title={value}
+                          >
+                            {column.key === 'repair_status' ? (
+                              <span className={`status-pill ${device.status}`}>{value}</span>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        )
+                      })}
                       {canManageDevices && (
                         <td>
                           <div className="row-actions">

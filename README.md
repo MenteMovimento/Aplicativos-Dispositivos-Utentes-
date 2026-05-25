@@ -18,7 +18,7 @@ Para exportar para Google Sheets, usa o botao `Exportar CSV` e importa o ficheir
 Para importar do Google Sheets, exporta a folha como CSV e usa `Importar CSV`. As colunas aceites sao:
 
 ```text
-ID, Numero de serie, Modelo, Local, Estado, Notas
+ID, Data Entrada, Marca, Modelo, Nº Série, CPU, RAM (GB), Disco, Sistema Operativo, Liga, Dá Imagem, BIOS, Estado Físico, Necessita Limpeza, Avaria, Diagnóstico, Peças Necessárias, Custo Estimado, Tempo Estimado (min), Técnico, Estado, Resultado Final, credencial administrador, privilegio, chrocme, aplicação, data copia de segurança, USB bloqueada, Conta GD, data copia de segurança Google Drive, Rastrear todas as contas GD e gmail e verificar acessos de partilha, Unifiormizar o desktop, App estimulação cognmitiva, Observações
 ```
 
 Na importacao, o `Numero de serie` e usado para atualizar dispositivos existentes sem duplicar.

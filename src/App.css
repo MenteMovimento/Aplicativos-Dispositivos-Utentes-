@@ -179,7 +179,7 @@ pre {
 }
 
 .device-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 label {
@@ -509,7 +509,30 @@ textarea:focus {
 }
 
 .span-2 {
-  grid-column: span 2;
+  grid-column: 1 / -1;
+}
+
+.form-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.form-section h3 {
+  margin: 0;
+  color: var(--brand-blue);
+  font-size: 0.95rem;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .permission-panel,
@@ -572,32 +595,12 @@ table {
   table-layout: fixed;
 }
 
-.col-device-id {
-  width: 15%;
-}
-
-.col-serial {
-  width: 18%;
-}
-
-.col-model {
-  width: 18%;
-}
-
-.col-location {
-  width: 14%;
-}
-
-.col-status {
-  width: 13%;
-}
-
-.col-updated {
-  width: 14%;
+.repair-table {
+  min-width: 5120px;
 }
 
 .col-actions {
-  width: 96px;
+  width: 104px;
 }
 
 th,
@@ -611,10 +614,24 @@ td {
   white-space: nowrap;
 }
 
-th:last-child,
-td:last-child {
+.repair-table.has-actions th:last-child,
+.repair-table.has-actions td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 2;
   overflow: visible;
   text-overflow: clip;
+  background: var(--surface);
+  box-shadow: -8px 0 14px rgba(16, 43, 61, 0.08);
+}
+
+.repair-table th:first-child,
+.repair-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: 8px 0 14px rgba(16, 43, 61, 0.08);
 }
 
 th {
@@ -622,6 +639,12 @@ th {
   font-size: 0.78rem;
   font-weight: 850;
   text-transform: uppercase;
+  background: var(--surface-soft);
+}
+
+.repair-table th:first-child,
+.repair-table.has-actions th:last-child {
+  z-index: 3;
   background: var(--surface-soft);
 }
 
@@ -635,6 +658,10 @@ td {
 }
 
 tbody tr:hover {
+  background: var(--brand-cyan-pale);
+}
+
+tbody tr:hover td {
   background: var(--brand-cyan-pale);
 }
 
@@ -726,7 +753,8 @@ tbody tr:last-child td {
   }
 
   .device-form,
-  .filters-row {
+  .filters-row,
+  .section-grid {
     grid-template-columns: 1fr;
   }
 
