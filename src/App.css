@@ -60,65 +60,22 @@ pre {
 .brand-logo {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  color: var(--brand-blue);
+  min-width: 0;
 }
 
 .brand-logo.compact {
-  gap: 10px;
-}
-
-.brand-symbol {
-  width: 54px;
-  height: 54px;
   flex: 0 0 auto;
 }
 
-.brand-logo.compact .brand-symbol {
-  width: 44px;
-  height: 44px;
+.brand-image {
+  display: block;
+  width: min(288px, 100%);
+  height: auto;
+  object-fit: contain;
 }
 
-.brand-ring {
-  fill: none;
-  stroke: var(--brand-cyan);
-  stroke-width: 6;
-}
-
-.brand-mind,
-.brand-divider {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 6;
-}
-
-.brand-mind-left,
-.brand-divider {
-  stroke: var(--brand-blue);
-}
-
-.brand-mind-right {
-  stroke: var(--brand-cyan);
-}
-
-.brand-word {
-  display: inline-flex;
-  align-items: baseline;
-  color: var(--brand-blue);
-  font-size: 1.16rem;
-  font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1;
-}
-
-.brand-logo.compact .brand-word {
-  font-size: 1rem;
-}
-
-.brand-word span:last-child {
-  color: var(--brand-cyan);
-  font-weight: 500;
+.brand-logo.compact .brand-image {
+  width: 236px;
 }
 
 .setup-shell,
@@ -180,13 +137,8 @@ pre {
   margin-bottom: 24px;
 }
 
-.auth-logo .brand-symbol {
-  width: 62px;
-  height: 62px;
-}
-
-.auth-logo .brand-word {
-  font-size: 1.35rem;
+.auth-logo .brand-image {
+  width: min(310px, 100%);
 }
 
 .auth-subtitle {
@@ -598,21 +550,54 @@ textarea:focus {
 
 table {
   width: 100%;
-  min-width: 920px;
+  min-width: 780px;
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.col-device-id {
+  width: 15%;
+}
+
+.col-serial {
+  width: 18%;
+}
+
+.col-model {
+  width: 18%;
+}
+
+.col-location {
+  width: 14%;
+}
+
+.col-status {
+  width: 13%;
+}
+
+.col-updated {
+  width: 14%;
+}
+
+.col-actions {
+  width: 96px;
 }
 
 th,
 td {
-  padding: 14px;
+  overflow: hidden;
+  padding: 13px 12px;
   border-bottom: 1px solid var(--border);
   text-align: left;
+  text-overflow: ellipsis;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 th:last-child,
 td:last-child {
-  width: 116px;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 th {
@@ -625,6 +610,11 @@ th {
 
 td {
   color: var(--text);
+}
+
+.device-id-cell {
+  color: var(--brand-blue);
+  font-weight: 850;
 }
 
 tbody tr:hover {
@@ -654,7 +644,7 @@ tbody tr:last-child td {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  min-width: 92px;
+  min-width: 88px;
 }
 
 @media (max-width: 1080px) {
@@ -734,8 +724,10 @@ tbody tr:last-child td {
     flex-direction: column;
   }
 
-  .auth-logo .brand-word {
-    font-size: 1.15rem;
+  .brand-image,
+  .auth-logo .brand-image,
+  .brand-logo.compact .brand-image {
+    width: min(255px, 100%);
   }
 
   .stats-grid {

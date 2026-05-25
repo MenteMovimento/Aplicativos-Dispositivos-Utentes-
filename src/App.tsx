@@ -53,7 +53,7 @@ const demoStorageKey = 'mentemovimento-demo-devices'
 const initialDemoDevices: Device[] = [
   {
     id: 'demo-1',
-    name: 'Portatil rececao',
+    name: 'PC-RECECAO-01',
     serial_number: 'MM-PT-001',
     model: 'Lenovo ThinkPad T14',
     location: 'Rececao',
@@ -66,7 +66,7 @@ const initialDemoDevices: Device[] = [
   },
   {
     id: 'demo-2',
-    name: 'Tablet sala de formacao',
+    name: 'TAB-SALA-02',
     serial_number: 'MM-TB-014',
     model: 'Samsung Galaxy Tab A9',
     location: 'Sala 2',
@@ -612,9 +612,10 @@ function App() {
           {canManageDevices ? (
             <form className="device-form" onSubmit={handleDeviceSubmit}>
               <label>
-                Nome
+                ID
                 <input
                   required
+                  placeholder="Ex: PC-Rececao-01"
                   value={deviceForm.name}
                   onChange={(event) =>
                     setDeviceForm((current) => ({ ...current, name: event.target.value }))
@@ -626,6 +627,7 @@ function App() {
                 Numero de serie
                 <input
                   required
+                  placeholder="Ex: SN123456"
                   value={deviceForm.serial_number}
                   onChange={(event) =>
                     setDeviceForm((current) => ({
@@ -640,6 +642,7 @@ function App() {
                 Modelo
                 <input
                   required
+                  placeholder="Ex: Lenovo ThinkPad T14"
                   value={deviceForm.model}
                   onChange={(event) =>
                     setDeviceForm((current) => ({ ...current, model: event.target.value }))
@@ -650,6 +653,7 @@ function App() {
               <label>
                 Local
                 <input
+                  placeholder="Ex: Rececao"
                   value={deviceForm.location}
                   onChange={(event) =>
                     setDeviceForm((current) => ({ ...current, location: event.target.value }))
@@ -778,9 +782,18 @@ function App() {
           ) : (
             <div className="table-wrap">
               <table>
+                <colgroup>
+                  <col className="col-device-id" />
+                  <col className="col-serial" />
+                  <col className="col-model" />
+                  <col className="col-location" />
+                  <col className="col-status" />
+                  <col className="col-updated" />
+                  {canManageDevices && <col className="col-actions" />}
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Nome</th>
+                    <th>ID</th>
                     <th>Numero de serie</th>
                     <th>Modelo</th>
                     <th>Local</th>
@@ -792,10 +805,12 @@ function App() {
                 <tbody>
                   {filteredDevices.map((device) => (
                     <tr key={device.id}>
-                      <td>{device.name}</td>
-                      <td>{device.serial_number}</td>
-                      <td>{device.model}</td>
-                      <td>{device.location ?? '-'}</td>
+                      <td className="device-id-cell" title={device.name}>
+                        {device.name}
+                      </td>
+                      <td title={device.serial_number}>{device.serial_number}</td>
+                      <td title={device.model}>{device.model}</td>
+                      <td title={device.location ?? '-'}>{device.location ?? '-'}</td>
                       <td>
                         <span className={`status-pill ${device.status}`}>
                           {statusLabels[device.status]}
