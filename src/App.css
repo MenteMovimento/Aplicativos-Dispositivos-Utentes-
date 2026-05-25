@@ -20,10 +20,48 @@
   --danger-soft: #fde9e7;
   --success: #11784f;
   --success-soft: #e4f6ee;
+  --label: #415868;
+  --table-heading: #50687a;
+  --auth-bg:
+    linear-gradient(180deg, #ffffff 0%, #f4f8fb 58%),
+    var(--bg);
   --shadow: 0 18px 45px rgba(16, 43, 61, 0.1);
   --shadow-soft: 0 8px 24px rgba(16, 43, 61, 0.07);
   color: var(--text);
   background: var(--bg);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0c1418;
+  --surface: #132026;
+  --surface-soft: #17272f;
+  --surface-strong: #1e333b;
+  --text: #edf7f8;
+  --muted: #9eb3bd;
+  --border: #2c444e;
+  --border-strong: #3b5b66;
+  --brand-blue: #58a9ff;
+  --brand-blue-strong: #9dccff;
+  --brand-cyan: #31d7d0;
+  --brand-cyan-soft: rgba(49, 215, 208, 0.14);
+  --brand-cyan-pale: rgba(49, 215, 208, 0.08);
+  --accent: #efcb83;
+  --warning: #f4bf5f;
+  --warning-soft: rgba(244, 191, 95, 0.16);
+  --danger: #ff8b80;
+  --danger-strong: #ffd0ca;
+  --danger-soft: rgba(255, 139, 128, 0.16);
+  --success: #70e4af;
+  --success-soft: rgba(112, 228, 175, 0.14);
+  --label: #bdd0d8;
+  --table-heading: #bdd0d8;
+  --auth-bg:
+    linear-gradient(180deg, #0f1c22 0%, #0c1418 58%),
+    var(--bg);
+  --shadow: 0 18px 45px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.26);
+  color-scheme: dark;
 }
 
 * {
@@ -33,6 +71,7 @@
 body {
   margin: 0;
   min-width: 320px;
+  color: var(--text);
   background: var(--bg);
 }
 
@@ -85,8 +124,7 @@ pre {
   place-items: center;
   padding: 24px;
   background:
-    linear-gradient(180deg, #ffffff 0%, #f4f8fb 58%),
-    var(--bg);
+    var(--auth-bg);
 }
 
 .setup-panel,
@@ -131,6 +169,12 @@ pre {
 .auth-panel {
   width: min(470px, 100%);
   padding: 30px;
+}
+
+.auth-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 18px;
 }
 
 .auth-logo {
@@ -190,7 +234,7 @@ pre {
 label {
   display: grid;
   gap: 7px;
-  color: #415868;
+  color: var(--label);
   font-size: 0.92rem;
   font-weight: 800;
 }
@@ -327,6 +371,58 @@ textarea:focus {
 .icon-button:hover {
   border-color: var(--brand-cyan);
   background: var(--brand-cyan-soft);
+}
+
+.app-controls,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-controls {
+  flex: 0 0 auto;
+}
+
+.language-control {
+  min-width: 110px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 8px;
+  color: var(--brand-blue);
+  background: var(--surface);
+}
+
+.language-control svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.language-control select {
+  min-height: 34px;
+  border: 0;
+  padding: 0 20px 0 0;
+  color: var(--text);
+  background: transparent;
+  font-weight: 850;
+}
+
+.language-control select:focus {
+  box-shadow: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .icon-button.danger {
@@ -759,7 +855,7 @@ td {
 }
 
 th {
-  color: #50687a;
+  color: var(--table-heading);
   font-size: 0.78rem;
   font-weight: 850;
   text-transform: uppercase;
@@ -886,7 +982,7 @@ tbody tr:last-child td {
 .fixed-role-preview {
   display: grid;
   gap: 7px;
-  color: #415868;
+  color: var(--label);
   font-size: 0.92rem;
   font-weight: 800;
 }
@@ -1044,6 +1140,39 @@ tbody tr:last-child td {
   line-height: 1.5;
 }
 
+:root[data-theme='dark'] .setup-panel pre {
+  color: #d9fbfa;
+  background: #071014;
+}
+
+:root[data-theme='dark'] .demo-banner {
+  color: #ffe4ad;
+  border-color: rgba(244, 191, 95, 0.34);
+  background: rgba(244, 191, 95, 0.12);
+}
+
+:root[data-theme='dark'] .demo-banner code {
+  color: var(--brand-blue-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .role-badge.role-admin,
+:root[data-theme='dark'] .fixed-role-preview strong {
+  color: var(--brand-blue-strong);
+  background: rgba(88, 169, 255, 0.16);
+}
+
+:root[data-theme='dark'] .role-badge.role-member,
+:root[data-theme='dark'] .status-pill.retired {
+  color: var(--muted);
+  background: rgba(158, 179, 189, 0.14);
+}
+
+:root[data-theme='dark'] .icon-button.danger,
+:root[data-theme='dark'] .danger-action {
+  border-color: rgba(255, 139, 128, 0.38);
+}
+
 @media (max-width: 1080px) {
   .app-shell {
     padding: 18px;
@@ -1073,12 +1202,23 @@ tbody tr:last-child td {
   }
 
   .topbar,
+  .topbar-actions,
   .account-box {
     align-items: flex-start;
   }
 
   .topbar {
     flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .app-controls {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .brand-heading {

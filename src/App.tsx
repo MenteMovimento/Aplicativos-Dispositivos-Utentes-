@@ -17,13 +17,16 @@ import {
   Download,
   Edit3,
   KeyRound,
+  Languages,
   Loader2,
   LogOut,
+  Moon,
   Plus,
   RefreshCw,
   Save,
   Search,
   ShieldCheck,
+  Sun,
   Trash2,
   Upload,
   UserPlus,
@@ -50,21 +53,39 @@ import type { Device, DeviceForm, DeviceStatus, RepairColumnKey, Profile } from 
 
 const deviceStatuses: DeviceStatus[] = ['active', 'maintenance', 'retired']
 const memberRoles: Profile['role'][] = ['admin', 'manager', 'member']
+type AppLanguage = 'pt' | 'en'
+type AppTheme = 'light' | 'dark'
 
-const statusLabels: Record<DeviceStatus, string> = {
-  active: 'Ativo',
-  maintenance: 'Manutencao',
-  retired: 'Arquivado',
+const statusLabels: Record<AppLanguage, Record<DeviceStatus, string>> = {
+  pt: {
+    active: 'Ativo',
+    maintenance: 'Manutencao',
+    retired: 'Arquivado',
+  },
+  en: {
+    active: 'Active',
+    maintenance: 'Maintenance',
+    retired: 'Archived',
+  },
 }
 
-const roleLabels: Record<Profile['role'], string> = {
-  admin: 'Administrador',
-  manager: 'Gestor',
-  member: 'Membro',
+const roleLabels: Record<AppLanguage, Record<Profile['role'], string>> = {
+  pt: {
+    admin: 'Administrador',
+    manager: 'Gestor',
+    member: 'Membro',
+  },
+  en: {
+    admin: 'Administrator',
+    manager: 'Manager',
+    member: 'Member',
+  },
 }
 
 const authEmailCooldownSeconds = 60
 const authCooldownStorageKey = 'mentemovimento-auth-email-cooldowns'
+const languageStorageKey = 'mentemovimento-language'
+const themeStorageKey = 'mentemovimento-theme'
 
 const stripOuterWhitespace = (value: string) => value.replace(/^\s+|\s+$/g, '')
 const normalizeEmail = (value: string) => value.toLowerCase()
@@ -152,25 +173,31 @@ const isExistingAccountError = (error: unknown) => {
   return message.includes('already registered') || message.includes('already exists')
 }
 
-const getFriendlyAuthError = (error: unknown) => {
+const getFriendlyAuthError = (error: unknown, language: AppLanguage) => {
   if (isEmailRateLimitError(error)) {
-    return 'O Supabase bloqueou temporariamente o envio de emails. Aguarda alguns minutos antes de pedir outro email de confirmacao.'
+    return language === 'pt'
+      ? 'O Supabase bloqueou temporariamente o envio de emails. Aguarda alguns minutos antes de pedir outro email de confirmacao.'
+      : 'Supabase temporarily blocked email sending. Wait a few minutes before requesting another confirmation email.'
   }
 
   if (isEmailNotConfirmedError(error)) {
-    return 'Este email ja tem conta, mas ainda precisa de confirmacao. Confirma no email ou usa Reenviar confirmacao.'
+    return language === 'pt'
+      ? 'Este email ja tem conta, mas ainda precisa de confirmacao. Confirma no email ou usa Reenviar confirmacao.'
+      : 'This email already has an account, but it still needs confirmation. Confirm it by email or use Resend confirmation.'
   }
 
   const message = getErrorMessage(error)
   if (message.toLowerCase().includes('invalid login credentials')) {
-    return 'Email ou palavra-passe incorretos.'
+    return language === 'pt' ? 'Email ou palavra-passe incorretos.' : 'Incorrect email or password.'
   }
 
   if (message.toLowerCase().includes('email logins are disabled')) {
-    return 'O login por email esta desativado no Supabase. Ativa o provider Email em Authentication > Providers.'
+    return language === 'pt'
+      ? 'O login por email esta desativado no Supabase. Ativa o provider Email em Authentication > Providers.'
+      : 'Email login is disabled in Supabase. Enable the Email provider in Authentication > Providers.'
   }
 
-  return message || 'Nao foi possivel autenticar.'
+  return message || (language === 'pt' ? 'Nao foi possivel autenticar.' : 'Could not authenticate.')
 }
 
 const isMissingEmailColumnError = (error: unknown) => {
@@ -184,92 +211,443 @@ const isMissingEmailColumnError = (error: unknown) => {
   )
 }
 
-const getFriendlyDataError = (error: unknown) => {
+const getFriendlyDataError = (error: unknown, language: AppLanguage) => {
   const message = getErrorMessage(error)
   const lowerMessage = message.toLowerCase()
 
   if (isMissingEmailColumnError(error)) {
-    return 'A base de dados ainda nao foi atualizada para a gestao de utilizadores. Executa o ficheiro supabase/user-management.sql no SQL Editor do Supabase.'
+    return language === 'pt'
+      ? 'A base de dados ainda nao foi atualizada para a gestao de utilizadores. Executa o ficheiro supabase/user-management.sql no SQL Editor do Supabase.'
+      : 'The database has not been updated for user management yet. Run supabase/user-management.sql in the Supabase SQL Editor.'
   }
 
   if (lowerMessage.includes('row-level security') || lowerMessage.includes('permission denied')) {
-    return 'O Supabase bloqueou o pedido por permissoes/RLS. Executa supabase/user-management.sql e volta a entrar na conta.'
+    return language === 'pt'
+      ? 'O Supabase bloqueou o pedido por permissoes/RLS. Executa supabase/user-management.sql e volta a entrar na conta.'
+      : 'Supabase blocked the request because of permissions/RLS. Run supabase/user-management.sql and sign in again.'
   }
 
   if (lowerMessage.includes('relation') && lowerMessage.includes('does not exist')) {
-    return 'A tabela necessaria ainda nao existe no Supabase. Executa o schema SQL do projeto no SQL Editor.'
+    return language === 'pt'
+      ? 'A tabela necessaria ainda nao existe no Supabase. Executa o schema SQL do projeto no SQL Editor.'
+      : 'The required table does not exist in Supabase yet. Run the project SQL schema in the SQL Editor.'
   }
 
   if (lowerMessage.includes('jwt') && lowerMessage.includes('expired')) {
-    return 'A tua sessao expirou. Sai e volta a entrar.'
+    return language === 'pt' ? 'A tua sessao expirou. Sai e volta a entrar.' : 'Your session expired. Sign out and sign in again.'
   }
 
-  return message || 'Nao foi possivel carregar os dados.'
+  return message || (language === 'pt' ? 'Nao foi possivel carregar os dados.' : 'Could not load the data.')
 }
 
-const manualSections = [
-  {
-    title: '1. Entrar no sistema',
-    steps: [
-      'Abre o site da Vercel e entra com o email e palavra-passe criados no Supabase.',
-      'Se ja existir uma sessao ativa, o site abre diretamente no painel.',
-      'Se o email ja estiver registado, usa Entrar em vez de criar conta novamente.',
-      'Se o Supabase pedir confirmacao, usa o botao Reenviar confirmacao apenas depois do cooldown.',
-      'Todos os utilizadores autenticados conseguem gerir dispositivos e abrir a area Utilizadores.',
-    ],
+const manualSectionsByLanguage: Record<
+  AppLanguage,
+  Array<{
+    title: string
+    steps: string[]
+  }>
+> = {
+  pt: [
+    {
+      title: '1. Entrar no sistema',
+      steps: [
+        'Abre o site da Vercel e entra com o email e palavra-passe criados no Supabase.',
+        'Se ja existir uma sessao ativa, o site abre diretamente no painel.',
+        'Se o email ja estiver registado, usa Entrar em vez de criar conta novamente.',
+        'Se o Supabase pedir confirmacao, usa o botao Reenviar confirmacao apenas depois do cooldown.',
+        'Todos os utilizadores autenticados conseguem gerir dispositivos e abrir a area Utilizadores.',
+      ],
+    },
+    {
+      title: '2. Criar um dispositivo',
+      steps: [
+        'No painel Novo dispositivo, preenche pelo menos ID, Modelo e Nº Série.',
+        'Usa as secoes Identificacao, Hardware e sistema, Diagnostico e reparacao, Configuracao e contas.',
+        'Clica em Adicionar dispositivo para guardar na base de dados.',
+      ],
+    },
+    {
+      title: '3. Editar ou desativar',
+      steps: [
+        'Na tabela, clica no icone de lapis da linha que queres alterar.',
+        'Altera os campos necessarios e clica em Guardar alteracoes.',
+        'Para deixar desativo, escreve Arquivado ou Abate no campo Estado da secao Diagnostico e reparacao.',
+      ],
+    },
+    {
+      title: '4. Importar do Google Sheets',
+      steps: [
+        'No Google Sheets, vai a Ficheiro > Transferir > Valores separados por virgulas (.csv).',
+        'No site, clica em Importar CSV e escolhe o ficheiro exportado.',
+        'A importacao usa o Nº Série para atualizar dispositivos existentes sem duplicar.',
+        'As colunas principais esperadas sao ID, Data Entrada, Marca, Modelo, Nº Série, CPU, RAM, Disco, Estado e Observacoes.',
+      ],
+    },
+    {
+      title: '5. Exportar para Google Sheets',
+      steps: [
+        'Clica em Exportar CSV para baixar a lista visivel na tabela.',
+        'No Google Sheets, importa ou abre esse ficheiro CSV.',
+        'Se usares pesquisa ou filtro antes de exportar, so os registos visiveis serao exportados.',
+      ],
+    },
+    {
+      title: '6. Apagar registos',
+      steps: [
+        'Para apagar uma linha, usa o icone vermelho de lixo nessa linha.',
+        'Para apagar tudo, usa Apagar tudo. O sistema pede confirmacao e exige escrever APAGAR.',
+        'Depois de apagar tudo, a acao nao pode ser desfeita. Exporta um CSV antes se precisares de copia.',
+      ],
+    },
+    {
+      title: '7. Gerir utilizadores',
+      steps: [
+        'Entra com uma conta confirmada e abre a aba Utilizadores.',
+        'Preenche nome, email e palavra-passe temporaria no formulario Criar utilizador.',
+        'Todas as contas criadas nesta area entram automaticamente como Administrador.',
+        'Na tabela, podes alterar a permissao para Administrador, Gestor ou Membro depois da criacao.',
+        'A tua propria permissao fica bloqueada para evitar perderes acesso ao painel.',
+      ],
+    },
+  ],
+  en: [
+    {
+      title: '1. Sign in',
+      steps: [
+        'Open the Vercel site and sign in with the email and password created in Supabase.',
+        'If a session already exists, the dashboard opens automatically.',
+        'If the email is already registered, use Sign in instead of creating the account again.',
+        'If Supabase asks for confirmation, use Resend confirmation only after the cooldown.',
+        'All authenticated users can manage devices and open the Users area.',
+      ],
+    },
+    {
+      title: '2. Create a device',
+      steps: [
+        'In New device, fill at least ID, Model and Serial number.',
+        'Use the Identification, Hardware and system, Diagnosis and repair, and Configuration and accounts sections.',
+        'Click Add device to save it to the database.',
+      ],
+    },
+    {
+      title: '3. Edit or deactivate',
+      steps: [
+        'In the table, click the pencil icon on the row you want to change.',
+        'Update the necessary fields and click Save changes.',
+        'To deactivate it, write Archived or Disposal in the State field inside Diagnosis and repair.',
+      ],
+    },
+    {
+      title: '4. Import from Google Sheets',
+      steps: [
+        'In Google Sheets, go to File > Download > Comma separated values (.csv).',
+        'In the site, click Import CSV and choose the exported file.',
+        'Import uses the Serial number to update existing devices without duplicating them.',
+        'The main expected columns are ID, Entry Date, Brand, Model, Serial number, CPU, RAM, Disk, State and Notes.',
+      ],
+    },
+    {
+      title: '5. Export to Google Sheets',
+      steps: [
+        'Click Export CSV to download the visible list.',
+        'Open or import that CSV file in Google Sheets.',
+        'If you search or filter before exporting, only visible records are exported.',
+      ],
+    },
+    {
+      title: '6. Delete records',
+      steps: [
+        'To delete one row, use the red trash icon on that row.',
+        'To delete everything, use Delete all. The system asks for confirmation and requires typing APAGAR.',
+        'After deleting everything, the action cannot be undone. Export a CSV first if you need a copy.',
+      ],
+    },
+    {
+      title: '7. Manage users',
+      steps: [
+        'Sign in with a confirmed account and open the Users tab.',
+        'Fill name, email and temporary password in the Create user form.',
+        'All accounts created in this area are automatically Administrators.',
+        'In the table, you can later change the permission to Administrator, Manager or Member.',
+        'Your own permission is locked to avoid losing access to the panel.',
+      ],
+    },
+  ],
+}
+
+const translations = {
+  pt: {
+    addDevice: 'Adicionar dispositivo',
+    actions: 'Acoes',
+    all: 'Todos',
+    appTitle: 'Gestor de dispositivos',
+    archived: 'Arquivados',
+    authTabLabel: 'Autenticacao',
+    cancel: 'Cancelar',
+    closeManual: 'Fechar manual',
+    confirmEmailTitle: 'Email por confirmar',
+    created: 'Criado',
+    createAccount: 'Criar conta',
+    createUser: 'Criar utilizador',
+    currentPermission: 'Permissao atual',
+    dashboardAccess: 'Acesso interno da associacao',
+    darkTheme: 'Ativar tema escuro',
+    delete: 'Apagar',
+    deleteAll: 'Apagar tudo',
+    demoMode: 'Modo demonstracao',
+    demoModeDescription:
+      'Podes adicionar, editar e apagar dispositivos. Os dados ficam guardados neste navegador ate configurares o Supabase.',
+    devices: 'Dispositivos',
+    devicesSummary: 'Resumo dos dispositivos',
+    displaySettings: 'Preferencias de visualizacao',
+    edit: 'Editar',
+    editDevice: 'Editar dispositivo',
+    email: 'Email',
+    exportCsv: 'Exportar CSV',
+    fixedRoleLabel: 'Permissao',
+    filterByStatus: 'Filtrar por estado',
+    formIdentification: 'Identificacao',
+    help: 'Ajuda',
+    importCsv: 'Importar CSV',
+    language: 'Idioma',
+    lightTheme: 'Ativar tema claro',
+    loading: 'A carregar',
+    loadingUsers: 'A carregar utilizadores',
+    manual: 'Manual',
+    manualTitle: 'Manual de utilizacao',
+    maintenance: 'Manutencao',
+    managementAreas: 'Areas de gestao',
+    name: 'Nome',
+    newDevice: 'Novo dispositivo',
+    noDevices: 'Nenhum dispositivo encontrado.',
+    noName: 'Sem nome',
+    noUsers: 'Nenhum utilizador encontrado.',
+    password: 'Palavra-passe',
+    permission: 'Permissao',
+    protectedRole: 'Protegido para manter o teu acesso.',
+    refresh: 'Atualizar',
+    registeredProfiles: 'perfis registados',
+    resendConfirmation: 'Reenviar confirmacao',
+    saveChanges: 'Guardar alteracoes',
+    search: 'Pesquisar',
+    signIn: 'Entrar',
+    signOut: 'Sair',
+    temporaryPassword: 'Palavra-passe temporaria',
+    thisIsYou: 'Tu',
+    total: 'Total',
+    updatePermission: 'Alterar permissao',
+    updated: 'Atualizado',
+    users: 'Utilizadores',
+    usersNote:
+      'Cria utilizadores nesta area. Todas as contas novas ficam como Administrador e prontas para entrar com a palavra-passe definida.',
+    usersNoteCreate: 'As novas contas ficam automaticamente com acesso de administrador.',
+    visibleRecords: 'registos visiveis',
+    readOnlyAccount: 'Esta conta tem acesso de leitura.',
+    accountCreated: 'Conta criada com sucesso.',
+    accountCreatedConfirm:
+      'Conta criada. Confirma o email antes de entrar. Evitei novos envios automaticos para nao bater no limite do Supabase.',
+    allDeleted: 'Todos os dispositivos foram apagados.',
+    allDeletedDemo: 'Todos os dispositivos foram apagados em modo demonstracao.',
+    confirmationResent: 'Email de confirmacao reenviado. Verifica a caixa de entrada e o spam.',
+    csvEmpty: 'O CSV nao tem dispositivos para importar.',
+    csvExported: 'CSV exportado para abrir no Google Sheets.',
+    csvImportFailed: 'Nao foi possivel importar o CSV.',
+    csvUnreadable: 'O CSV tem linhas que nao foi possivel ler.',
+    deleteAllCancelled: 'Eliminacao cancelada. Confirmacao incorreta.',
+    deleteAllPrompt: 'Para confirmar, escreve APAGAR',
+    demoRefreshed: 'Modo demonstracao atualizado.',
+    demoSupabaseRequired: 'Modo demonstracao ativo. Configura o Supabase para usar login real.',
+    deviceAdded: 'Dispositivo adicionado.',
+    deviceAddedDemo: 'Dispositivo adicionado em modo demonstracao.',
+    deviceDeleted: 'Dispositivo apagado.',
+    deviceDeletedDemo: 'Dispositivo apagado em modo demonstracao.',
+    deviceUpdated: 'Dispositivo atualizado.',
+    deviceUpdatedDemo: 'Dispositivo atualizado em modo demonstracao.',
+    emailRegistered: 'Este email ja esta registado. Usa Entrar para aceder.',
+    enterEmailToConfirm: 'Indica o email antes de pedir nova confirmacao.',
+    fillRequiredDevice: 'Preenche o nome, numero de serie e modelo.',
+    fillUser: 'Preenche nome, email e palavra-passe.',
+    noDevicesToDelete: 'Nao ha dispositivos para apagar.',
+    noExportVisible: 'Nao ha dispositivos visiveis para exportar.',
+    ownRoleBlocked: 'Nao podes alterar a permissao da tua propria conta.',
+    passwordMin: 'A palavra-passe deve ter pelo menos 6 caracteres.',
+    saveFailed: 'Nao foi possivel guardar.',
+    sessionActive: 'Sessao ja ativa. Entraste diretamente no painel.',
+    userCreated: 'Utilizador criado com a permissao definida.',
+    userCreatedDemo: 'Utilizador criado em modo demonstracao.',
+    userExists: 'Ja existe um utilizador com esse email.',
+    resendIn: (seconds: number) => `Reenviar em ${seconds}s`,
+    waitSeconds: (seconds: number) => `Aguarda ${seconds}s`,
+    changePermissionFor: (name: string) => `Alterar permissao de ${name}`,
+    csvImported: (count: number) => `${count} dispositivos importados do CSV.`,
+    csvImportedUpdated: (count: number) => `${count} dispositivos importados/atualizados.`,
+    csvLineRequired: (row: number) => `Linha ${row}: ID, Nº Série e Modelo sao obrigatorios.`,
+    deleteAllConfirm: (count: number) =>
+      `Vais apagar TODOS os ${count} dispositivos. Esta acao nao pode ser desfeita. Continuar?`,
+    deleteOne: (name: string) => `Apagar "${name}"?`,
+    recentConfirmation: (seconds: number) =>
+      `Ja foi enviado um email de confirmacao recentemente. Aguarda ${seconds} segundos antes de tentar novamente.`,
+    roleUpdated: (name: string) => `Permissao de ${name} atualizada.`,
+    waitBeforeResend: (seconds: number) =>
+      `Aguarda ${seconds} segundos antes de reenviar o email de confirmacao.`,
   },
-  {
-    title: '2. Criar um dispositivo',
-    steps: [
-      'No painel Novo dispositivo, preenche pelo menos ID, Modelo e Nº Série.',
-      'Usa as secoes Identificação, Hardware e sistema, Diagnóstico e reparação, Configuração e contas.',
-      'Clica em Adicionar dispositivo para guardar na base de dados.',
-    ],
+  en: {
+    addDevice: 'Add device',
+    actions: 'Actions',
+    all: 'All',
+    appTitle: 'Device manager',
+    archived: 'Archived',
+    authTabLabel: 'Authentication',
+    cancel: 'Cancel',
+    closeManual: 'Close manual',
+    confirmEmailTitle: 'Email not confirmed',
+    created: 'Created',
+    createAccount: 'Create account',
+    createUser: 'Create user',
+    currentPermission: 'Current permission',
+    dashboardAccess: 'Internal association access',
+    darkTheme: 'Turn on dark theme',
+    delete: 'Delete',
+    deleteAll: 'Delete all',
+    demoMode: 'Demo mode',
+    demoModeDescription:
+      'You can add, edit and delete devices. Data stays in this browser until Supabase is configured.',
+    devices: 'Devices',
+    devicesSummary: 'Devices summary',
+    displaySettings: 'Display preferences',
+    edit: 'Edit',
+    editDevice: 'Edit device',
+    email: 'Email',
+    exportCsv: 'Export CSV',
+    fixedRoleLabel: 'Permission',
+    filterByStatus: 'Filter by status',
+    formIdentification: 'Identification',
+    help: 'Help',
+    importCsv: 'Import CSV',
+    language: 'Language',
+    lightTheme: 'Turn on light theme',
+    loading: 'Loading',
+    loadingUsers: 'Loading users',
+    maintenance: 'Maintenance',
+    managementAreas: 'Management areas',
+    manual: 'Manual',
+    manualTitle: 'User manual',
+    name: 'Name',
+    newDevice: 'New device',
+    noDevices: 'No devices found.',
+    noName: 'No name',
+    noUsers: 'No users found.',
+    password: 'Password',
+    permission: 'Permission',
+    protectedRole: 'Protected to keep your access.',
+    refresh: 'Refresh',
+    registeredProfiles: 'registered profiles',
+    resendConfirmation: 'Resend confirmation',
+    saveChanges: 'Save changes',
+    search: 'Search',
+    signIn: 'Sign in',
+    signOut: 'Sign out',
+    temporaryPassword: 'Temporary password',
+    thisIsYou: 'You',
+    total: 'Total',
+    updatePermission: 'Change permission',
+    updated: 'Updated',
+    users: 'Users',
+    usersNote:
+      'Create users in this area. All new accounts are Administrators and ready to sign in with the defined password.',
+    usersNoteCreate: 'New accounts automatically get administrator access.',
+    visibleRecords: 'visible records',
+    readOnlyAccount: 'This account has read-only access.',
+    accountCreated: 'Account created successfully.',
+    accountCreatedConfirm:
+      'Account created. Confirm the email before signing in. Automatic resends were avoided to prevent hitting the Supabase limit.',
+    allDeleted: 'All devices were deleted.',
+    allDeletedDemo: 'All devices were deleted in demo mode.',
+    confirmationResent: 'Confirmation email resent. Check the inbox and spam folder.',
+    csvEmpty: 'The CSV has no devices to import.',
+    csvExported: 'CSV exported for Google Sheets.',
+    csvImportFailed: 'Could not import the CSV.',
+    csvUnreadable: 'The CSV has rows that could not be read.',
+    deleteAllCancelled: 'Deletion cancelled. Incorrect confirmation.',
+    deleteAllPrompt: 'To confirm, type APAGAR',
+    demoRefreshed: 'Demo mode refreshed.',
+    demoSupabaseRequired: 'Demo mode is active. Configure Supabase to use real login.',
+    deviceAdded: 'Device added.',
+    deviceAddedDemo: 'Device added in demo mode.',
+    deviceDeleted: 'Device deleted.',
+    deviceDeletedDemo: 'Device deleted in demo mode.',
+    deviceUpdated: 'Device updated.',
+    deviceUpdatedDemo: 'Device updated in demo mode.',
+    emailRegistered: 'This email is already registered. Use Sign in to access.',
+    enterEmailToConfirm: 'Enter the email before requesting a new confirmation.',
+    fillRequiredDevice: 'Fill name, serial number and model.',
+    fillUser: 'Fill name, email and password.',
+    noDevicesToDelete: 'There are no devices to delete.',
+    noExportVisible: 'There are no visible devices to export.',
+    ownRoleBlocked: 'You cannot change your own account permission.',
+    passwordMin: 'Password must be at least 6 characters.',
+    saveFailed: 'Could not save.',
+    sessionActive: 'Session already active. You went straight to the dashboard.',
+    userCreated: 'User created with the defined permission.',
+    userCreatedDemo: 'User created in demo mode.',
+    userExists: 'A user with that email already exists.',
+    resendIn: (seconds: number) => `Resend in ${seconds}s`,
+    waitSeconds: (seconds: number) => `Wait ${seconds}s`,
+    changePermissionFor: (name: string) => `Change permission for ${name}`,
+    csvImported: (count: number) => `${count} devices imported from CSV.`,
+    csvImportedUpdated: (count: number) => `${count} devices imported/updated.`,
+    csvLineRequired: (row: number) => `Row ${row}: ID, Serial No. and Model are required.`,
+    deleteAllConfirm: (count: number) =>
+      `You are about to delete ALL ${count} devices. This action cannot be undone. Continue?`,
+    deleteOne: (name: string) => `Delete "${name}"?`,
+    recentConfirmation: (seconds: number) =>
+      `A confirmation email was sent recently. Wait ${seconds} seconds before trying again.`,
+    roleUpdated: (name: string) => `${name}'s permission was updated.`,
+    waitBeforeResend: (seconds: number) =>
+      `Wait ${seconds} seconds before resending the confirmation email.`,
   },
-  {
-    title: '3. Editar ou desativar',
-    steps: [
-      'Na tabela, clica no icone de lapis da linha que queres alterar.',
-      'Altera os campos necessarios e clica em Guardar alterações.',
-      'Para deixar desativo, escreve Arquivado ou Abate no campo Estado da secao Diagnóstico e reparação.',
-    ],
+} as const
+
+const repairLabelTranslations: Record<AppLanguage, Record<string, string>> = {
+  pt: {},
+  en: {
+    'Data Entrada': 'Entry Date',
+    Marca: 'Brand',
+    Modelo: 'Model',
+    'Nº Série': 'Serial No.',
+    'RAM (GB)': 'RAM (GB)',
+    Disco: 'Disk',
+    'Sistema Operativo': 'Operating System',
+    Liga: 'Powers On',
+    'Dá Imagem': 'Has Image',
+    'Estado Físico': 'Physical State',
+    'Necessita Limpeza': 'Needs Cleaning',
+    Avaria: 'Fault',
+    Diagnóstico: 'Diagnosis',
+    'Peças Necessárias': 'Parts Needed',
+    'Custo Estimado': 'Estimated Cost',
+    'Tempo Estimado (min)': 'Estimated Time (min)',
+    Técnico: 'Technician',
+    Estado: 'State',
+    'Resultado Final': 'Final Result',
+    'credencial administrador': 'administrator credential',
+    privilegio: 'privilege',
+    chrocme: 'chrome',
+    aplicação: 'application',
+    'data copia de segurança': 'backup date',
+    'USB bloqueada': 'USB blocked',
+    'Conta GD': 'GD Account',
+    'data copia de segurança Google Drive': 'Google Drive backup date',
+    'Rastrear todas as contas GD e gmail e verificar acessos de partilha':
+      'Track all GD and Gmail accounts and sharing access',
+    'Unifiormizar o desktop': 'Standardize desktop',
+    'App estimulação cognmitiva': 'Cognitive stimulation app',
+    Observações: 'Notes',
+    'Hardware e sistema': 'Hardware and system',
+    'Diagnóstico e reparação': 'Diagnosis and repair',
+    'Configuração e contas': 'Configuration and accounts',
   },
-  {
-    title: '4. Importar do Google Sheets',
-    steps: [
-      'No Google Sheets, vai a Ficheiro > Transferir > Valores separados por virgulas (.csv).',
-      'No site, clica em Importar CSV e escolhe o ficheiro exportado.',
-      'A importação usa o Nº Série para atualizar dispositivos existentes sem duplicar.',
-      'As colunas principais esperadas sao ID, Data Entrada, Marca, Modelo, Nº Série, CPU, RAM, Disco, Estado e Observações.',
-    ],
-  },
-  {
-    title: '5. Exportar para Google Sheets',
-    steps: [
-      'Clica em Exportar CSV para baixar a lista visivel na tabela.',
-      'No Google Sheets, importa ou abre esse ficheiro CSV.',
-      'Se usares pesquisa ou filtro antes de exportar, so os registos visiveis serao exportados.',
-    ],
-  },
-  {
-    title: '6. Apagar registos',
-    steps: [
-      'Para apagar uma linha, usa o icone vermelho de lixo nessa linha.',
-      'Para apagar tudo, usa Apagar tudo. O sistema pede confirmacao e exige escrever APAGAR.',
-      'Depois de apagar tudo, a acao nao pode ser desfeita. Exporta um CSV antes se precisares de copia.',
-    ],
-  },
-  {
-    title: '7. Gerir utilizadores',
-    steps: [
-      'Entra com uma conta confirmada e abre a aba Utilizadores.',
-      'Preenche nome, email e palavra-passe temporaria no formulario Criar utilizador.',
-      'Todas as contas criadas nesta area entram automaticamente como Administrador.',
-      'Na tabela, podes alterar a permissão para Administrador, Gestor ou Membro depois da criacao.',
-      'A tua propria permissao fica bloqueada para evitar perderes acesso ao painel.',
-    ],
-  },
-]
+}
 
 const emptyDeviceForm: DeviceForm = {
   name: '',
@@ -367,17 +745,17 @@ const persistDemoProfiles = (nextProfiles: Profile[]) => {
   window.localStorage.setItem(demoProfilesStorageKey, JSON.stringify(nextProfiles))
 }
 
-const formatProfileDate = (value?: string) => {
+const formatProfileDate = (value: string | undefined, language: AppLanguage) => {
   if (!value) return 'N/A'
 
-  return new Intl.DateTimeFormat('pt-PT', {
+  return new Intl.DateTimeFormat(language === 'pt' ? 'pt-PT' : 'en-GB', {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(value))
 }
 
-const getProfileDisplayName = (userProfile: Profile) =>
-  stripOuterWhitespace(userProfile.full_name ?? '') || 'Sem nome'
+const getProfileDisplayName = (userProfile: Profile, fallback = 'Sem nome') =>
+  stripOuterWhitespace(userProfile.full_name ?? '') || fallback
 
 const emptyCreateUserForm = {
   fullName: '',
@@ -386,6 +764,15 @@ const emptyCreateUserForm = {
 }
 
 function App() {
+  const [language, setLanguage] = useState<AppLanguage>(() =>
+    window.localStorage.getItem(languageStorageKey) === 'en' ? 'en' : 'pt',
+  )
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    const storedTheme = window.localStorage.getItem(themeStorageKey)
+
+    if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profiles, setProfiles] = useState<Profile[]>(() =>
@@ -434,6 +821,11 @@ function App() {
   const currentAuthEmail = normalizeEmail(authForm.email)
   const signupCooldownRemaining = getRemainingSeconds(signupCooldownUntil, authClock)
   const resendCooldownRemaining = getRemainingSeconds(resendCooldownUntil, authClock)
+  const t = translations[language]
+  const localizedRoleLabels = roleLabels[language]
+  const localizedStatusLabels = statusLabels[language]
+  const manualSections = manualSectionsByLanguage[language]
+  const translateRepairLabel = (label: string) => repairLabelTranslations[language][label] ?? label
 
   const loadProfile = useCallback(async (userId: string, userEmail?: string | null) => {
     if (!supabase) return
@@ -525,12 +917,12 @@ function App() {
         await loadProfile(currentSession.user.id, currentSession.user.email)
         await loadDevices()
       } catch (error) {
-        setAuthError(getFriendlyDataError(error))
+        setAuthError(getFriendlyDataError(error, language))
       } finally {
         setIsLoading(false)
       }
     },
-    [loadDevices, loadProfile],
+    [language, loadDevices, loadProfile],
   )
 
   const refreshUsers = useCallback(async () => {
@@ -542,11 +934,21 @@ function App() {
     try {
       await loadProfiles()
     } catch (error) {
-      setAuthError(getFriendlyDataError(error))
+      setAuthError(getFriendlyDataError(error, language))
     } finally {
       setIsUsersLoading(false)
     }
-  }, [canManageUsers, loadProfiles])
+  }, [canManageUsers, language, loadProfiles])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem(themeStorageKey, theme)
+  }, [theme])
+
+  useEffect(() => {
+    document.documentElement.lang = language === 'pt' ? 'pt-PT' : 'en'
+    window.localStorage.setItem(languageStorageKey, language)
+  }, [language])
 
   useEffect(() => {
     if (!supabase) return
@@ -681,12 +1083,12 @@ function App() {
       if (existingSession.session) {
         setSession(existingSession.session)
         await refreshData(existingSession.session)
-        setNotice('Sessao ja ativa. Entraste diretamente no painel.')
+        setNotice(t.sessionActive)
         return
       }
 
       if (authForm.password.length < 6) {
-        throw new Error('A palavra-passe deve ter pelo menos 6 caracteres.')
+        throw new Error(t.passwordMin)
       }
 
       if (authMode === 'login') {
@@ -703,12 +1105,7 @@ function App() {
 
         if (getRemainingSeconds(storedSignupCooldown, Date.now()) > 0) {
           setPendingConfirmationEmail(email)
-          setNotice(
-            `Ja foi enviado um email de confirmacao recentemente. Aguarda ${getRemainingSeconds(
-              storedSignupCooldown,
-              Date.now(),
-            )} segundos antes de tentar novamente.`,
-          )
+          setNotice(t.recentConfirmation(getRemainingSeconds(storedSignupCooldown, Date.now())))
           return
         }
 
@@ -716,7 +1113,7 @@ function App() {
 
         if (isRegistered) {
           setAuthMode('login')
-          setNotice('Este email ja esta registado. Usa Entrar para aceder.')
+          setNotice(t.emailRegistered)
           return
         }
 
@@ -735,7 +1132,7 @@ function App() {
 
         if (data.user?.identities && data.user.identities.length === 0) {
           setAuthMode('login')
-          setNotice('Este email ja esta registado. Usa Entrar para aceder.')
+          setNotice(t.emailRegistered)
           return
         }
 
@@ -743,18 +1140,16 @@ function App() {
           setPendingConfirmationEmail(email)
           setSignupCooldownUntil(setCooldownUntil('signup', email))
           setResendCooldownUntil(setCooldownUntil('resend', email))
-          setNotice(
-            'Conta criada. Confirma o email antes de entrar. Evitei novos envios automaticos para nao bater no limite do Supabase.',
-          )
+          setNotice(t.accountCreatedConfirm)
         } else {
           setPendingConfirmationEmail('')
-          setNotice('Conta criada com sucesso.')
+          setNotice(t.accountCreated)
         }
       }
     } catch (error) {
       if (isExistingAccountError(error)) {
         setAuthMode('login')
-        setNotice('Este email ja esta registado. Usa Entrar para aceder.')
+        setNotice(t.emailRegistered)
         return
       }
 
@@ -770,7 +1165,7 @@ function App() {
         setResendCooldownUntil(nextCooldown)
       }
 
-      setAuthError(getFriendlyAuthError(error))
+      setAuthError(getFriendlyAuthError(error, language))
     } finally {
       setAuthLoading(false)
     }
@@ -784,14 +1179,14 @@ function App() {
     const remaining = getRemainingSeconds(storedCooldown, Date.now())
 
     if (!email) {
-      setAuthError('Indica o email antes de pedir nova confirmacao.')
+      setAuthError(t.enterEmailToConfirm)
       return
     }
 
     setResendCooldownUntil(storedCooldown)
 
     if (remaining > 0) {
-      setNotice(`Aguarda ${remaining} segundos antes de reenviar o email de confirmacao.`)
+      setNotice(t.waitBeforeResend(remaining))
       return
     }
 
@@ -812,14 +1207,14 @@ function App() {
 
       setPendingConfirmationEmail(email)
       setResendCooldownUntil(setCooldownUntil('resend', email))
-      setNotice('Email de confirmacao reenviado. Verifica a caixa de entrada e o spam.')
+      setNotice(t.confirmationResent)
     } catch (error) {
       if (isEmailRateLimitError(error)) {
         const nextCooldown = setCooldownUntil('resend', email)
         setResendCooldownUntil(nextCooldown)
       }
 
-      setAuthError(getFriendlyAuthError(error))
+      setAuthError(getFriendlyAuthError(error, language))
     } finally {
       setIsResendingConfirmation(false)
     }
@@ -827,7 +1222,7 @@ function App() {
 
   const handleSignOut = async () => {
     if (isDemoMode) {
-      setNotice('Modo demonstracao ativo. Configura o Supabase para usar login real.')
+      setNotice(t.demoSupabaseRequired)
       return
     }
 
@@ -863,7 +1258,7 @@ function App() {
 
     try {
       if (!payload.name || !payload.serial_number || !payload.model) {
-        throw new Error('Preenche o nome, numero de serie e modelo.')
+        throw new Error(t.fillRequiredDevice)
       }
 
       if (isDemoMode) {
@@ -882,7 +1277,7 @@ function App() {
 
           setDevices(nextDevices)
           persistDemoDevices(nextDevices)
-          setNotice('Dispositivo atualizado em modo demonstracao.')
+          setNotice(t.deviceUpdatedDemo)
         } else {
           const nextDevice: Device = {
             id: createDemoId(),
@@ -895,7 +1290,7 @@ function App() {
 
           setDevices(nextDevices)
           persistDemoDevices(nextDevices)
-          setNotice('Dispositivo adicionado em modo demonstracao.')
+          setNotice(t.deviceAddedDemo)
         }
 
         setDeviceForm(emptyDeviceForm)
@@ -918,7 +1313,7 @@ function App() {
         setDevices((currentDevices) =>
           currentDevices.map((device) => (device.id === editingId ? (data as Device) : device)),
         )
-        setNotice('Dispositivo atualizado.')
+        setNotice(t.deviceUpdated)
       } else {
         const { data, error } = await supabase
           .from('devices')
@@ -932,13 +1327,13 @@ function App() {
         if (error) throw error
 
         setDevices((currentDevices) => [data as Device, ...currentDevices])
-        setNotice('Dispositivo adicionado.')
+        setNotice(t.deviceAdded)
       }
 
       setDeviceForm(emptyDeviceForm)
       setEditingId(null)
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Nao foi possivel guardar.')
+      setAuthError(error instanceof Error ? error.message : t.saveFailed)
     } finally {
       setIsSaving(false)
     }
@@ -958,7 +1353,7 @@ function App() {
   const deleteDevice = async (device: Device) => {
     if (!canManageDevices) return
 
-    const confirmed = window.confirm(`Apagar "${device.name}"?`)
+    const confirmed = window.confirm(t.deleteOne(device.name))
     if (!confirmed) return
 
     setAuthError(null)
@@ -973,7 +1368,7 @@ function App() {
         cancelEditing()
       }
 
-      setNotice('Dispositivo apagado em modo demonstracao.')
+      setNotice(t.deviceDeletedDemo)
       return
     }
 
@@ -992,25 +1387,23 @@ function App() {
       cancelEditing()
     }
 
-    setNotice('Dispositivo apagado.')
+    setNotice(t.deviceDeleted)
   }
 
   const deleteAllDevices = async () => {
     if (!canManageDevices) return
 
     if (devices.length === 0) {
-      setNotice('Nao ha dispositivos para apagar.')
+      setNotice(t.noDevicesToDelete)
       return
     }
 
-    const firstConfirmation = window.confirm(
-      `Vais apagar TODOS os ${devices.length} dispositivos. Esta acao nao pode ser desfeita. Continuar?`,
-    )
+    const firstConfirmation = window.confirm(t.deleteAllConfirm(devices.length))
     if (!firstConfirmation) return
 
-    const typedConfirmation = window.prompt('Para confirmar, escreve APAGAR')
+    const typedConfirmation = window.prompt(t.deleteAllPrompt)
     if (typedConfirmation !== 'APAGAR') {
-      setNotice('Eliminacao cancelada. Confirmacao incorreta.')
+      setNotice(t.deleteAllCancelled)
       return
     }
 
@@ -1021,7 +1414,7 @@ function App() {
       setDevices([])
       persistDemoDevices([])
       cancelEditing()
-      setNotice('Todos os dispositivos foram apagados em modo demonstracao.')
+      setNotice(t.allDeletedDemo)
       return
     }
 
@@ -1042,7 +1435,7 @@ function App() {
 
     setDevices([])
     cancelEditing()
-    setNotice('Todos os dispositivos foram apagados.')
+    setNotice(t.allDeleted)
   }
 
   const createUser = async (event: FormEvent<HTMLFormElement>) => {
@@ -1062,15 +1455,15 @@ function App() {
 
     try {
       if (!payload.fullName || !payload.email || !payload.password) {
-        throw new Error('Preenche nome, email e palavra-passe.')
+        throw new Error(t.fillUser)
       }
 
       if (payload.password.length < 6) {
-        throw new Error('A palavra-passe deve ter pelo menos 6 caracteres.')
+        throw new Error(t.passwordMin)
       }
 
       if (profiles.some((userProfile) => userProfile.email?.toLowerCase() === payload.email)) {
-        throw new Error('Ja existe um utilizador com esse email.')
+        throw new Error(t.userExists)
       }
 
       if (isDemoMode) {
@@ -1088,7 +1481,7 @@ function App() {
         setProfiles(nextProfiles)
         persistDemoProfiles(nextProfiles)
         setCreateUserForm(emptyCreateUserForm)
-        setNotice('Utilizador criado em modo demonstracao.')
+        setNotice(t.userCreatedDemo)
         return
       }
 
@@ -1110,9 +1503,9 @@ function App() {
 
       setProfiles((currentProfiles) => [...currentProfiles, result.profile as Profile])
       setCreateUserForm(emptyCreateUserForm)
-      setNotice('Utilizador criado com a permissao definida.')
+      setNotice(t.userCreated)
     } catch (error) {
-      setAuthError(getFriendlyDataError(error))
+      setAuthError(getFriendlyDataError(error, language))
     } finally {
       setIsCreatingUser(false)
     }
@@ -1122,7 +1515,7 @@ function App() {
     if (!canManageUsers || targetProfile.role === nextRole) return
 
     if (targetProfile.id === currentProfileId) {
-      setNotice('Nao podes alterar a permissao da tua propria conta.')
+      setNotice(t.ownRoleBlocked)
       return
     }
 
@@ -1139,7 +1532,7 @@ function App() {
 
         setProfiles(nextProfiles)
         persistDemoProfiles(nextProfiles)
-        setNotice(`Permissao de ${getProfileDisplayName(targetProfile)} atualizada.`)
+        setNotice(t.roleUpdated(getProfileDisplayName(targetProfile, t.noName)))
         return
       }
 
@@ -1166,9 +1559,9 @@ function App() {
       setProfiles((currentProfiles) =>
         currentProfiles.map((item) => (item.id === targetProfile.id ? (data as Profile) : item)),
       )
-      setNotice(`Permissao de ${getProfileDisplayName(targetProfile)} atualizada.`)
+      setNotice(t.roleUpdated(getProfileDisplayName(targetProfile, t.noName)))
     } catch (error) {
-      setAuthError(getFriendlyDataError(error))
+      setAuthError(getFriendlyDataError(error, language))
     } finally {
       setSavingProfileId(null)
     }
@@ -1176,7 +1569,7 @@ function App() {
 
   const exportDevicesCsv = () => {
     if (filteredDevices.length === 0) {
-      setNotice('Nao ha dispositivos visiveis para exportar.')
+      setNotice(t.noExportVisible)
       return
     }
 
@@ -1192,7 +1585,7 @@ function App() {
     link.download = `dispositivos-mentemovimento-${new Date().toISOString().slice(0, 10)}.csv`
     link.click()
     window.URL.revokeObjectURL(url)
-    setNotice('CSV exportado para abrir no Google Sheets.')
+    setNotice(t.csvExported)
   }
 
   const importDevicesCsv = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1211,7 +1604,7 @@ function App() {
       complete: async (results) => {
         try {
           if (results.errors.length > 0) {
-            throw new Error('O CSV tem linhas que nao foi possivel ler.')
+            throw new Error(t.csvUnreadable)
           }
 
           const importedBySerial = new Map<string, DeviceForm>()
@@ -1227,7 +1620,7 @@ function App() {
             }
 
             if (!importedDevice.name || !importedDevice.serial_number || !importedDevice.model) {
-              throw new Error(`Linha ${index + 2}: ID, Nº Série e Modelo sao obrigatorios.`)
+              throw new Error(t.csvLineRequired(index + 2))
             }
 
             importedBySerial.set(importedDevice.serial_number, importedDevice)
@@ -1236,7 +1629,7 @@ function App() {
           const importedDevices = Array.from(importedBySerial.values())
 
           if (importedDevices.length === 0) {
-            throw new Error('O CSV nao tem dispositivos para importar.')
+            throw new Error(t.csvEmpty)
           }
 
           if (isDemoMode) {
@@ -1269,7 +1662,7 @@ function App() {
 
             setDevices(nextDevices)
             persistDemoDevices(nextDevices)
-            setNotice(`${importedDevices.length} dispositivos importados do CSV.`)
+            setNotice(t.csvImported(importedDevices.length))
             return
           }
 
@@ -1292,9 +1685,9 @@ function App() {
           if (error) throw error
 
           await loadDevices()
-          setNotice(`${importedDevices.length} dispositivos importados/atualizados.`)
+          setNotice(t.csvImportedUpdated(importedDevices.length))
         } catch (error) {
-          setAuthError(error instanceof Error ? error.message : 'Nao foi possivel importar o CSV.')
+          setAuthError(error instanceof Error ? error.message : t.csvImportFailed)
         } finally {
           setIsImporting(false)
         }
@@ -1317,6 +1710,32 @@ function App() {
     }))
   }
 
+  const appControls = (
+    <div className="app-controls" aria-label={t.displaySettings}>
+      <label className="language-control">
+        <Languages aria-hidden="true" />
+        <span className="sr-only">{t.language}</span>
+        <select
+          value={language}
+          onChange={(event) => setLanguage(event.target.value === 'en' ? 'en' : 'pt')}
+          aria-label={t.language}
+        >
+          <option value="pt">PT</option>
+          <option value="en">EN</option>
+        </select>
+      </label>
+      <button
+        type="button"
+        className="icon-button"
+        onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+        title={theme === 'dark' ? t.lightTheme : t.darkTheme}
+        aria-label={theme === 'dark' ? t.lightTheme : t.darkTheme}
+      >
+        {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+      </button>
+    </div>
+  )
+
   const manualDialog = isManualOpen ? (
     <div
       className="manual-overlay"
@@ -1332,14 +1751,15 @@ function App() {
       >
         <header className="manual-header">
           <div>
-            <p className="manual-kicker">Ajuda</p>
-            <h2 id="manual-title">Manual de utilização</h2>
+            <p className="manual-kicker">{t.help}</p>
+            <h2 id="manual-title">{t.manualTitle}</h2>
           </div>
           <button
             type="button"
             className="icon-button"
             onClick={() => setIsManualOpen(false)}
-            title="Fechar manual"
+            title={t.closeManual}
+            aria-label={t.closeManual}
           >
             <X aria-hidden="true" />
           </button>
@@ -1364,22 +1784,23 @@ function App() {
     return (
       <main className="auth-shell">
         <section className="auth-panel" aria-labelledby="auth-title">
+          <div className="auth-toolbar">{appControls}</div>
           <BrandLogo className="auth-logo" />
           <div>
-            <h1 id="auth-title">Gestor de dispositivos</h1>
-            <p className="auth-subtitle">Acesso interno da associacao</p>
+            <h1 id="auth-title">{t.appTitle}</h1>
+            <p className="auth-subtitle">{t.dashboardAccess}</p>
             <button
               type="button"
               className="manual-button auth-manual-button"
               onClick={() => setIsManualOpen(true)}
-              title="Abrir manual"
+              title={t.manual}
             >
               <BookOpen aria-hidden="true" />
-              Manual
+              {t.manual}
             </button>
           </div>
 
-          <div className="mode-tabs" role="tablist" aria-label="Autenticacao">
+          <div className="mode-tabs" role="tablist" aria-label={t.authTabLabel}>
             <button
               type="button"
               className={authMode === 'login' ? 'active' : ''}
@@ -1389,7 +1810,7 @@ function App() {
                 setNotice(null)
               }}
             >
-              Entrar
+              {t.signIn}
             </button>
             <button
               type="button"
@@ -1401,14 +1822,14 @@ function App() {
                 setSignupCooldownUntil(getCooldownUntil('signup', currentAuthEmail))
               }}
             >
-              Criar conta
+              {t.createAccount}
             </button>
           </div>
 
           <form className="stack-form" onSubmit={handleAuthSubmit}>
             {authMode === 'signup' && (
               <label>
-                Nome
+                {t.name}
                 <input
                   autoComplete="name"
                   value={authForm.fullName}
@@ -1419,7 +1840,7 @@ function App() {
               </label>
             )}
             <label>
-              Email
+              {t.email}
               <input
                 required
                 type="email"
@@ -1435,7 +1856,7 @@ function App() {
               />
             </label>
             <label>
-              Palavra-passe
+              {t.password}
               <input
                 required
                 minLength={6}
@@ -1464,7 +1885,7 @@ function App() {
             {pendingConfirmationEmail && (
               <div className="confirmation-panel">
                 <div>
-                  <strong>Email por confirmar</strong>
+                  <strong>{t.confirmEmailTitle}</strong>
                   <p>{pendingConfirmationEmail}</p>
                 </div>
                 <button
@@ -1479,8 +1900,8 @@ function App() {
                     <RefreshCw aria-hidden="true" />
                   )}
                   {resendCooldownRemaining > 0
-                    ? `Reenviar em ${resendCooldownRemaining}s`
-                    : 'Reenviar confirmacao'}
+                    ? t.resendIn(resendCooldownRemaining)
+                    : t.resendConfirmation}
                 </button>
               </div>
             )}
@@ -1492,10 +1913,10 @@ function App() {
             >
               {authLoading ? <Loader2 className="spin" aria-hidden="true" /> : <KeyRound />}
               {authMode === 'login'
-                ? 'Entrar'
+                ? t.signIn
                 : signupCooldownRemaining > 0
-                  ? `Aguarda ${signupCooldownRemaining}s`
-                  : 'Criar conta'}
+                  ? t.waitSeconds(signupCooldownRemaining)
+                  : t.createAccount}
             </button>
           </form>
         </section>
@@ -1509,48 +1930,48 @@ function App() {
       <header className="topbar">
         <div className="brand-heading">
           <BrandLogo compact />
-          <h1>Gestor de dispositivos</h1>
+          <h1>{t.appTitle}</h1>
         </div>
-        <div className="account-box">
-          <span className="role-badge">{roleLabels[currentRole]}</span>
-          <span>{currentEmail}</span>
-          <button
-            type="button"
-            className="manual-button"
-            onClick={() => setIsManualOpen(true)}
-            title="Abrir manual"
-          >
-            <BookOpen aria-hidden="true" />
-            Manual
-          </button>
-          <button type="button" className="icon-button" onClick={handleSignOut} title="Sair">
-            <LogOut aria-hidden="true" />
-          </button>
+        <div className="topbar-actions">
+          {appControls}
+          <div className="account-box">
+            <span className="role-badge">{localizedRoleLabels[currentRole]}</span>
+            <span>{currentEmail}</span>
+            <button
+              type="button"
+              className="manual-button"
+              onClick={() => setIsManualOpen(true)}
+              title={t.manual}
+            >
+              <BookOpen aria-hidden="true" />
+              {t.manual}
+            </button>
+            <button type="button" className="icon-button" onClick={handleSignOut} title={t.signOut}>
+              <LogOut aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
 
       {isDemoMode && (
         <section className="demo-banner">
           <div>
-            <strong>Modo demonstracao</strong>
-            <span>
-              Podes adicionar, editar e apagar dispositivos. Os dados ficam guardados neste
-              navegador ate configurares o Supabase.
-            </span>
+            <strong>{t.demoMode}</strong>
+            <span>{t.demoModeDescription}</span>
           </div>
           <code>.env.local</code>
         </section>
       )}
 
       {canManageUsers && (
-        <nav className="view-tabs" aria-label="Areas de gestao">
+        <nav className="view-tabs" aria-label={t.managementAreas}>
           <button
             type="button"
             className={selectedView === 'devices' ? 'active' : ''}
             onClick={() => setActiveView('devices')}
           >
             <ClipboardList aria-hidden="true" />
-            Dispositivos
+            {t.devices}
           </button>
           <button
             type="button"
@@ -1561,28 +1982,28 @@ function App() {
             }}
           >
             <UsersRound aria-hidden="true" />
-            Utilizadores
+            {t.users}
           </button>
         </nav>
       )}
 
       {selectedView === 'devices' ? (
         <>
-      <section className="stats-grid" aria-label="Resumo dos dispositivos">
+      <section className="stats-grid" aria-label={t.devicesSummary}>
         <article>
-          <span>Total</span>
+          <span>{t.total}</span>
           <strong>{totals.all}</strong>
         </article>
         <article>
-          <span>Ativos</span>
+          <span>{localizedStatusLabels.active}</span>
           <strong>{totals.active}</strong>
         </article>
         <article>
-          <span>Manutencao</span>
+          <span>{t.maintenance}</span>
           <strong>{totals.maintenance}</strong>
         </article>
         <article>
-          <span>Arquivados</span>
+          <span>{t.archived}</span>
           <strong>{totals.retired}</strong>
         </article>
       </section>
@@ -1590,11 +2011,11 @@ function App() {
       <div className="workspace">
         <section className="form-panel" aria-labelledby="device-form-title">
           <div className="section-heading">
-            <h2 id="device-form-title">{editingId ? 'Editar dispositivo' : 'Novo dispositivo'}</h2>
+            <h2 id="device-form-title">{editingId ? t.editDevice : t.newDevice}</h2>
             {editingId && (
               <button type="button" className="ghost-action" onClick={cancelEditing}>
                 <X aria-hidden="true" />
-                Cancelar
+                {t.cancel}
               </button>
             )}
           </div>
@@ -1602,7 +2023,7 @@ function App() {
           {canManageDevices ? (
             <form className="device-form" onSubmit={handleDeviceSubmit}>
               <div className="form-section span-2">
-                <h3>Identificação</h3>
+                <h3>{t.formIdentification}</h3>
                 <div className="section-grid">
                   <label>
                     ID
@@ -1617,7 +2038,7 @@ function App() {
                   </label>
 
                   <label>
-                    Data Entrada
+                    {translateRepairLabel('Data Entrada')}
                     <input
                       placeholder="Ex: 15/04/2026"
                       value={deviceForm.repair.entry_date}
@@ -1626,7 +2047,7 @@ function App() {
                   </label>
 
                   <label>
-                    Marca
+                    {translateRepairLabel('Marca')}
                     <input
                       placeholder="Ex: Lenovo"
                       value={deviceForm.brand}
@@ -1641,7 +2062,7 @@ function App() {
                   </label>
 
                   <label>
-                    Modelo
+                    {translateRepairLabel('Modelo')}
                     <input
                       required
                       placeholder="Ex: ThinkPad"
@@ -1653,7 +2074,7 @@ function App() {
                   </label>
 
                   <label>
-                    Nº Série
+                    {translateRepairLabel('Nº Série')}
                     <input
                       required
                       placeholder="Ex: PF-09UN6N"
@@ -1671,11 +2092,11 @@ function App() {
 
               {repairFormSections.map((section) => (
                 <div className="form-section span-2" key={section.title}>
-                  <h3>{section.title}</h3>
+                  <h3>{translateRepairLabel(section.title)}</h3>
                   <div className="section-grid">
                     {section.fields.map((field) => (
                       <label className={field.multiline ? 'span-2' : ''} key={field.key}>
-                        {field.label}
+                        {translateRepairLabel(field.label)}
                         {field.multiline ? (
                           <textarea
                             rows={3}
@@ -1702,13 +2123,13 @@ function App() {
                 ) : (
                   <Plus aria-hidden="true" />
                 )}
-                {editingId ? 'Guardar alteracoes' : 'Adicionar dispositivo'}
+                {editingId ? t.saveChanges : t.addDevice}
               </button>
             </form>
           ) : (
             <div className="permission-panel">
               <CircleAlert aria-hidden="true" />
-              <p>Esta conta tem acesso de leitura.</p>
+              <p>{t.readOnlyAccount}</p>
             </div>
           )}
         </section>
@@ -1716,8 +2137,10 @@ function App() {
         <section className="list-panel" aria-labelledby="devices-title">
           <div className="section-heading">
             <div>
-              <h2 id="devices-title">Dispositivos</h2>
-              <p>{filteredDevices.length} registos visiveis</p>
+              <h2 id="devices-title">{t.devices}</h2>
+              <p>
+                {filteredDevices.length} {t.visibleRecords}
+              </p>
             </div>
             <div className="list-actions">
               <input
@@ -1729,7 +2152,7 @@ function App() {
               />
               <button type="button" className="ghost-action" onClick={exportDevicesCsv}>
                 <Download aria-hidden="true" />
-                Exportar CSV
+                {t.exportCsv}
               </button>
               {canManageDevices && (
                 <button
@@ -1743,7 +2166,7 @@ function App() {
                   ) : (
                     <Upload aria-hidden="true" />
                   )}
-                  Importar CSV
+                  {t.importCsv}
                 </button>
               )}
               {canManageDevices && (
@@ -1753,7 +2176,7 @@ function App() {
                   onClick={() => void deleteAllDevices()}
                 >
                   <Trash2 aria-hidden="true" />
-                  Apagar tudo
+                  {t.deleteAll}
                 </button>
               )}
               <button
@@ -1761,13 +2184,14 @@ function App() {
                 className="icon-button"
                 onClick={() => {
                   if (isDemoMode) {
-                    setNotice('Modo demonstracao atualizado.')
+                    setNotice(t.demoRefreshed)
                     return
                   }
 
                   if (session) void refreshData(session)
                 }}
-                title="Atualizar"
+                title={t.refresh}
+                aria-label={t.refresh}
               >
                 <RefreshCw aria-hidden="true" />
               </button>
@@ -1778,7 +2202,7 @@ function App() {
             <label className="search-field">
               <Search aria-hidden="true" />
               <input
-                placeholder="Pesquisar"
+                placeholder={t.search}
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
@@ -1786,12 +2210,12 @@ function App() {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as 'all' | DeviceStatus)}
-              aria-label="Filtrar por estado"
+              aria-label={t.filterByStatus}
             >
-              <option value="all">Todos</option>
+              <option value="all">{t.all}</option>
               {deviceStatuses.map((status) => (
                 <option key={status} value={status}>
-                  {statusLabels[status]}
+                  {localizedStatusLabels[status]}
                 </option>
               ))}
             </select>
@@ -1813,12 +2237,12 @@ function App() {
           {isLoading ? (
             <div className="loading-state">
               <Loader2 className="spin" aria-hidden="true" />
-              A carregar
+              {t.loading}
             </div>
           ) : filteredDevices.length === 0 ? (
             <div className="empty-state">
               <ClipboardList aria-hidden="true" />
-              <p>Nenhum dispositivo encontrado.</p>
+              <p>{t.noDevices}</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -1832,9 +2256,9 @@ function App() {
                 <thead>
                   <tr>
                     {repairTableColumns.map((column) => (
-                      <th key={column.key}>{column.label}</th>
+                      <th key={column.key}>{translateRepairLabel(column.label)}</th>
                     ))}
-                    {canManageDevices && <th aria-label="Acoes" />}
+                    {canManageDevices && <th aria-label={t.actions} />}
                   </tr>
                 </thead>
                 <tbody>
@@ -1863,7 +2287,8 @@ function App() {
                               type="button"
                               className="icon-button"
                               onClick={() => startEditing(device)}
-                              title="Editar"
+                              title={t.edit}
+                              aria-label={t.edit}
                             >
                               <Edit3 aria-hidden="true" />
                             </button>
@@ -1871,7 +2296,8 @@ function App() {
                               type="button"
                               className="icon-button danger"
                               onClick={() => void deleteDevice(device)}
-                              title="Apagar"
+                              title={t.delete}
+                              aria-label={t.delete}
                             >
                               <Trash2 aria-hidden="true" />
                             </button>
@@ -1891,8 +2317,10 @@ function App() {
         <section className="users-panel" aria-labelledby="users-title">
           <div className="section-heading">
             <div>
-              <h2 id="users-title">Utilizadores</h2>
-              <p>{profiles.length} perfis registados</p>
+              <h2 id="users-title">{t.users}</h2>
+              <p>
+                {profiles.length} {t.registeredProfiles}
+              </p>
             </div>
             <button
               type="button"
@@ -1905,29 +2333,26 @@ function App() {
               ) : (
                 <RefreshCw aria-hidden="true" />
               )}
-              Atualizar
+              {t.refresh}
             </button>
           </div>
 
           <div className="users-note">
             <ShieldCheck aria-hidden="true" />
-            <p>
-              Cria utilizadores nesta area. Todas as contas novas ficam como Administrador e
-              prontas para entrar com a palavra-passe definida.
-            </p>
+            <p>{t.usersNote}</p>
           </div>
 
           <form className="user-create-panel" onSubmit={createUser}>
             <div className="user-create-heading">
               <UserPlus aria-hidden="true" />
               <div>
-                <h3>Criar utilizador</h3>
-                <p>As novas contas ficam automaticamente com acesso de administrador.</p>
+                <h3>{t.createUser}</h3>
+                <p>{t.usersNoteCreate}</p>
               </div>
             </div>
             <div className="user-create-form">
               <label>
-                Nome
+                {t.name}
                 <input
                   required
                   value={createUserForm.fullName}
@@ -1940,7 +2365,7 @@ function App() {
                 />
               </label>
               <label>
-                Email
+                {t.email}
                 <input
                   required
                   type="email"
@@ -1954,7 +2379,7 @@ function App() {
                 />
               </label>
               <label>
-                Palavra-passe temporaria
+                {t.temporaryPassword}
                 <input
                   required
                   minLength={6}
@@ -1968,9 +2393,9 @@ function App() {
                   }
                 />
               </label>
-              <div className="fixed-role-preview" aria-label="Permissao das contas novas">
-                <span>Permissao</span>
-                <strong>Administrador</strong>
+              <div className="fixed-role-preview" aria-label={t.permission}>
+                <span>{t.permission}</span>
+                <strong>{localizedRoleLabels.admin}</strong>
               </div>
             </div>
             <button className="primary-action" type="submit" disabled={isCreatingUser}>
@@ -1979,7 +2404,7 @@ function App() {
               ) : (
                 <UserPlus aria-hidden="true" />
               )}
-              Criar utilizador
+              {t.createUser}
             </button>
           </form>
 
@@ -1999,23 +2424,23 @@ function App() {
           {isUsersLoading ? (
             <div className="loading-state">
               <Loader2 className="spin" aria-hidden="true" />
-              A carregar utilizadores
+              {t.loadingUsers}
             </div>
           ) : profiles.length === 0 ? (
             <div className="empty-state">
               <UsersRound aria-hidden="true" />
-              <p>Nenhum utilizador encontrado.</p>
+              <p>{t.noUsers}</p>
             </div>
           ) : (
             <div className="table-wrap users-table-wrap">
               <table className="users-table">
                 <thead>
                   <tr>
-                    <th>Utilizador</th>
-                    <th>Permissao atual</th>
-                    <th>Alterar permissao</th>
-                    <th>Criado</th>
-                    <th>Atualizado</th>
+                    <th>{t.users}</th>
+                    <th>{t.currentPermission}</th>
+                    <th>{t.updatePermission}</th>
+                    <th>{t.created}</th>
+                    <th>{t.updated}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2026,15 +2451,15 @@ function App() {
                       <tr key={userProfile.id}>
                         <td>
                           <div className="user-identity">
-                            <strong>{getProfileDisplayName(userProfile)}</strong>
-                            {isCurrentProfile && <span>Tu</span>}
+                            <strong>{getProfileDisplayName(userProfile, t.noName)}</strong>
+                            {isCurrentProfile && <span>{t.thisIsYou}</span>}
                             {userProfile.email && <small>{userProfile.email}</small>}
                             <small>{userProfile.id}</small>
                           </div>
                         </td>
                         <td>
                           <span className={`role-badge role-${userProfile.role}`}>
-                            {roleLabels[userProfile.role]}
+                            {localizedRoleLabels[userProfile.role]}
                           </span>
                         </td>
                         <td>
@@ -2048,21 +2473,23 @@ function App() {
                                 )
                               }
                               disabled={isCurrentProfile || savingProfileId === userProfile.id}
-                              aria-label={`Alterar permissao de ${getProfileDisplayName(userProfile)}`}
+                              aria-label={t.changePermissionFor(
+                                getProfileDisplayName(userProfile, t.noName),
+                              )}
                             >
                               {memberRoles.map((role) => (
                                 <option key={role} value={role}>
-                                  {roleLabels[role]}
+                                  {localizedRoleLabels[role]}
                                 </option>
                               ))}
                             </select>
                             {isCurrentProfile && (
-                              <span className="role-helper">Protegido para manter o teu acesso.</span>
+                              <span className="role-helper">{t.protectedRole}</span>
                             )}
                           </div>
                         </td>
-                        <td>{formatProfileDate(userProfile.created_at)}</td>
-                        <td>{formatProfileDate(userProfile.updated_at)}</td>
+                        <td>{formatProfileDate(userProfile.created_at, language)}</td>
+                        <td>{formatProfileDate(userProfile.updated_at, language)}</td>
                       </tr>
                     )
                   })}

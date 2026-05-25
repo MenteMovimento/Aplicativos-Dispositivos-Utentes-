@@ -6,6 +6,8 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 
 - Login e criacao de conta com Supabase Auth.
 - Mensagens amigaveis para limite de emails e cooldown para reenviar confirmacao.
+- Tema claro/escuro com preferencia guardada no navegador.
+- Idiomas da interface: Portugues (Portugal) e Ingles.
 - Listagem, pesquisa e filtro por estado.
 - Criacao, edicao e remocao de dispositivos.
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.

@@ -8,6 +8,7 @@
 4. Se o email ja existir, usa `Entrar` em vez de criar outra conta.
 5. Se aparecer limite de emails, aguarda o cooldown antes de pedir novo email de confirmacao.
 6. Todos os utilizadores autenticados conseguem gerir dispositivos.
+7. Usa o seletor `PT/EN` para mudar o idioma e o botao de lua/sol para alternar tema claro ou escuro.
 
 ## 2. Criar um dispositivo
 
