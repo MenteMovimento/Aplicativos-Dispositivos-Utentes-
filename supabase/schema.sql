@@ -5,7 +5,7 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique,
   full_name text,
-  role public.member_role not null default 'member',
+  role public.member_role not null default 'admin',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -51,18 +51,9 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  next_role public.member_role;
 begin
-  select
-    case
-      when exists (select 1 from public.profiles) then 'member'::public.member_role
-      else 'admin'::public.member_role
-    end
-  into next_role;
-
   insert into public.profiles (id, email, full_name, role)
-  values (new.id, new.email, nullif(new.raw_user_meta_data->>'full_name', ''), next_role)
+  values (new.id, new.email, nullif(new.raw_user_meta_data->>'full_name', ''), 'admin')
   on conflict (id) do nothing;
 
   return new;

@@ -857,6 +857,26 @@ tbody tr:last-child td {
   gap: 12px;
 }
 
+.fixed-role-preview {
+  display: grid;
+  gap: 7px;
+  color: #415868;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.fixed-role-preview strong {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 12px;
+  color: var(--brand-blue-strong);
+  background: #dcebff;
+}
+
 .users-table {
   min-width: 900px;
 }

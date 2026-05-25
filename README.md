@@ -43,7 +43,7 @@ VITE_SUPABASE_ANON_KEY=a_tua_chave_anon
 SUPABASE_SERVICE_ROLE_KEY=a_tua_chave_service_role
 ```
 
-A primeira conta criada fica automaticamente com perfil `admin`. As contas seguintes ficam como `member`.
+Todas as contas novas ficam automaticamente com perfil `admin`.
 
 Para promover uma conta para gestor, executa no SQL Editor:
 

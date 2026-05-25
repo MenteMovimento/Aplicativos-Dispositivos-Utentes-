@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-const allowedRoles = new Set(['admin', 'manager', 'member'])
-
 const sendJson = (response, status, body) => {
   response.status(status).json(body)
 }
@@ -83,7 +81,6 @@ export default async function handler(request, response) {
     const email = String(body.email ?? '').trim().toLowerCase()
     const password = String(body.password ?? '')
     const fullName = String(body.fullName ?? '').trim()
-    const role = String(body.role ?? 'member')
 
     if (!email || !password || !fullName) {
       sendJson(response, 400, { error: 'Nome, email e palavra-passe sao obrigatorios.' })
@@ -92,11 +89,6 @@ export default async function handler(request, response) {
 
     if (password.length < 6) {
       sendJson(response, 400, { error: 'A palavra-passe deve ter pelo menos 6 caracteres.' })
-      return
-    }
-
-    if (!allowedRoles.has(role)) {
-      sendJson(response, 400, { error: 'Permissao invalida.' })
       return
     }
 
@@ -122,7 +114,7 @@ export default async function handler(request, response) {
         id: createdUser.user.id,
         email,
         full_name: fullName,
-        role,
+        role: 'admin',
       })
       .select('id, email, full_name, role, created_at, updated_at')
       .single()

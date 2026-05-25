@@ -117,8 +117,9 @@ const manualSections = [
     title: '7. Gerir utilizadores',
     steps: [
       'Entra com uma conta Administrador e abre a aba Utilizadores.',
-      'Preenche nome, email, palavra-passe temporaria e permissao no formulario Criar utilizador.',
-      'Na tabela, altera a permissão para Administrador, Gestor ou Membro.',
+      'Preenche nome, email e palavra-passe temporaria no formulario Criar utilizador.',
+      'Todas as contas criadas nesta area entram automaticamente como Administrador.',
+      'Na tabela, podes alterar a permissão para Administrador, Gestor ou Membro depois da criacao.',
       'A tua própria permissão fica bloqueada para evitar perderes acesso de administrador.',
     ],
   },
@@ -236,7 +237,6 @@ const emptyCreateUserForm = {
   fullName: '',
   email: '',
   password: '',
-  role: 'member' as Profile['role'],
 }
 
 function App() {
@@ -727,7 +727,6 @@ function App() {
       fullName: createUserForm.fullName.trim(),
       email: createUserForm.email.trim().toLowerCase(),
       password: createUserForm.password,
-      role: createUserForm.role,
     }
 
     setIsCreatingUser(true)
@@ -753,7 +752,7 @@ function App() {
           id: createDemoId(),
           email: payload.email,
           full_name: payload.fullName,
-          role: payload.role,
+          role: 'admin',
           created_at: now,
           updated_at: now,
         }
@@ -1534,8 +1533,8 @@ function App() {
           <div className="users-note">
             <ShieldCheck aria-hidden="true" />
             <p>
-              Cria utilizadores nesta area e escolhe logo a permissao. A conta fica confirmada e
-              pronta para entrar com a palavra-passe definida.
+              Cria utilizadores nesta area. Todas as contas novas ficam como Administrador e
+              prontas para entrar com a palavra-passe definida.
             </p>
           </div>
 
@@ -1544,7 +1543,7 @@ function App() {
               <UserPlus aria-hidden="true" />
               <div>
                 <h3>Criar utilizador</h3>
-                <p>Define o acesso antes de entregar os dados de entrada ao colega.</p>
+                <p>As novas contas ficam automaticamente com acesso de administrador.</p>
               </div>
             </div>
             <div className="user-create-form">
@@ -1590,24 +1589,10 @@ function App() {
                   }
                 />
               </label>
-              <label>
-                Permissao
-                <select
-                  value={createUserForm.role}
-                  onChange={(event) =>
-                    setCreateUserForm((current) => ({
-                      ...current,
-                      role: event.target.value as Profile['role'],
-                    }))
-                  }
-                >
-                  {memberRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {roleLabels[role]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="fixed-role-preview" aria-label="Permissao das contas novas">
+                <span>Permissao</span>
+                <strong>Administrador</strong>
+              </div>
             </div>
             <button className="primary-action" type="submit" disabled={isCreatingUser}>
               {isCreatingUser ? (

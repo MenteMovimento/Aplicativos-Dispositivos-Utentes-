@@ -1,6 +1,9 @@
 alter table public.profiles
 add column if not exists email text;
 
+alter table public.profiles
+alter column role set default 'admin';
+
 do $$
 begin
   if not exists (
@@ -25,23 +28,17 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  next_role public.member_role;
 begin
-  select
-    case
-      when exists (select 1 from public.profiles) then 'member'::public.member_role
-      else 'admin'::public.member_role
-    end
-  into next_role;
-
   insert into public.profiles (id, email, full_name, role)
-  values (new.id, new.email, nullif(new.raw_user_meta_data->>'full_name', ''), next_role)
+  values (new.id, new.email, nullif(new.raw_user_meta_data->>'full_name', ''), 'admin')
   on conflict (id) do nothing;
 
   return new;
 end;
 $$;
+
+update public.profiles
+set role = 'admin';
 
 drop policy if exists "Admins can read all profiles" on public.profiles;
 drop policy if exists "Admins can update profiles" on public.profiles;
