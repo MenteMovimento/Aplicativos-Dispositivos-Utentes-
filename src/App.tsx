@@ -519,9 +519,14 @@ function App() {
 
           results.data.forEach((row, index) => {
             const importedDevice = csvRowToDeviceForm(row)
+            const hasAnyValue = Object.values(row).some((value) => String(value ?? '').trim())
+
+            if (!hasAnyValue) {
+              return
+            }
 
             if (!importedDevice.name || !importedDevice.serial_number || !importedDevice.model) {
-              throw new Error(`Linha ${index + 2}: ID, Numero de serie e Modelo sao obrigatorios.`)
+              throw new Error(`Linha ${index + 2}: ID, Nº Série e Modelo sao obrigatorios.`)
             }
 
             importedBySerial.set(importedDevice.serial_number, importedDevice)
