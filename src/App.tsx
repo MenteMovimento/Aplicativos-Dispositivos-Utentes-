@@ -10,6 +10,7 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import { parse, unparse } from 'papaparse'
 import {
+  BookOpen,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
@@ -57,6 +58,58 @@ const roleLabels: Record<Profile['role'], string> = {
   manager: 'Gestor',
   member: 'Membro',
 }
+
+const manualSections = [
+  {
+    title: '1. Entrar no sistema',
+    steps: [
+      'Abre o site da Vercel e entra com o email e palavra-passe criados no Supabase.',
+      'Contas Administrador e Gestor podem criar, editar, importar, exportar e apagar dispositivos.',
+      'Contas Membro conseguem consultar os dispositivos, mas nao conseguem alterar dados.',
+    ],
+  },
+  {
+    title: '2. Criar um dispositivo',
+    steps: [
+      'No painel Novo dispositivo, preenche pelo menos ID, Modelo e Nº Série.',
+      'Usa as secoes Identificação, Hardware e sistema, Diagnóstico e reparação, Configuração e contas.',
+      'Clica em Adicionar dispositivo para guardar na base de dados.',
+    ],
+  },
+  {
+    title: '3. Editar ou desativar',
+    steps: [
+      'Na tabela, clica no icone de lapis da linha que queres alterar.',
+      'Altera os campos necessarios e clica em Guardar alterações.',
+      'Para deixar desativo, escreve Arquivado ou Abate no campo Estado da secao Diagnóstico e reparação.',
+    ],
+  },
+  {
+    title: '4. Importar do Google Sheets',
+    steps: [
+      'No Google Sheets, vai a Ficheiro > Transferir > Valores separados por virgulas (.csv).',
+      'No site, clica em Importar CSV e escolhe o ficheiro exportado.',
+      'A importação usa o Nº Série para atualizar dispositivos existentes sem duplicar.',
+      'As colunas principais esperadas sao ID, Data Entrada, Marca, Modelo, Nº Série, CPU, RAM, Disco, Estado e Observações.',
+    ],
+  },
+  {
+    title: '5. Exportar para Google Sheets',
+    steps: [
+      'Clica em Exportar CSV para baixar a lista visivel na tabela.',
+      'No Google Sheets, importa ou abre esse ficheiro CSV.',
+      'Se usares pesquisa ou filtro antes de exportar, so os registos visiveis serao exportados.',
+    ],
+  },
+  {
+    title: '6. Apagar registos',
+    steps: [
+      'Para apagar uma linha, usa o icone vermelho de lixo nessa linha.',
+      'Para apagar tudo, usa Apagar tudo. O sistema pede confirmacao e exige escrever APAGAR.',
+      'Depois de apagar tudo, a acao nao pode ser desfeita. Exporta um CSV antes se precisares de copia.',
+    ],
+  },
+]
 
 const emptyDeviceForm: DeviceForm = {
   name: '',
@@ -135,6 +188,7 @@ function App() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
+  const [isManualOpen, setIsManualOpen] = useState(false)
   const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const isDemoMode = !isSupabaseConfigured
@@ -233,6 +287,22 @@ function App() {
       subscription.unsubscribe()
     }
   }, [refreshData])
+
+  useEffect(() => {
+    if (!isManualOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsManualOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isManualOpen])
 
   const filteredDevices = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -666,6 +736,49 @@ function App() {
     }))
   }
 
+  const manualDialog = isManualOpen ? (
+    <div
+      className="manual-overlay"
+      onClick={() => setIsManualOpen(false)}
+      role="presentation"
+    >
+      <section
+        className="manual-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="manual-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="manual-header">
+          <div>
+            <p className="manual-kicker">Ajuda</p>
+            <h2 id="manual-title">Manual de utilização</h2>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setIsManualOpen(false)}
+            title="Fechar manual"
+          >
+            <X aria-hidden="true" />
+          </button>
+        </header>
+        <div className="manual-body">
+          {manualSections.map((section) => (
+            <article className="manual-section" key={section.title}>
+              <h3>{section.title}</h3>
+              <ol>
+                {section.steps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  ) : null
+
   if (!isAuthenticated) {
     return (
       <main className="auth-shell">
@@ -674,6 +787,15 @@ function App() {
           <div>
             <h1 id="auth-title">Gestor de dispositivos</h1>
             <p className="auth-subtitle">Acesso interno da associacao</p>
+            <button
+              type="button"
+              className="manual-button auth-manual-button"
+              onClick={() => setIsManualOpen(true)}
+              title="Abrir manual"
+            >
+              <BookOpen aria-hidden="true" />
+              Manual
+            </button>
           </div>
 
           <div className="mode-tabs" role="tablist" aria-label="Autenticacao">
@@ -751,6 +873,7 @@ function App() {
             </button>
           </form>
         </section>
+        {manualDialog}
       </main>
     )
   }
@@ -765,6 +888,15 @@ function App() {
         <div className="account-box">
           <span className="role-badge">{roleLabels[currentRole]}</span>
           <span>{currentEmail}</span>
+          <button
+            type="button"
+            className="manual-button"
+            onClick={() => setIsManualOpen(true)}
+            title="Abrir manual"
+          >
+            <BookOpen aria-hidden="true" />
+            Manual
+          </button>
           <button type="button" className="icon-button" onClick={handleSignOut} title="Sair">
             <LogOut aria-hidden="true" />
           </button>
@@ -1102,6 +1234,8 @@ function App() {
           )}
         </section>
       </div>
+
+      {manualDialog}
     </main>
   )
 }

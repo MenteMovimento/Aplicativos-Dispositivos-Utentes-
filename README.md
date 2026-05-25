@@ -23,6 +23,10 @@ ID, Data Entrada, Marca, Modelo, Nº Série, CPU, RAM (GB), Disco, Sistema Opera
 
 Na importacao, o `Numero de serie` e usado para atualizar dispositivos existentes sem duplicar.
 
+## Manual de utilizacao
+
+Consulta `MANUAL.md` ou usa o botao `Manual` dentro da aplicacao.
+
 ## Configurar Supabase
 
 1. Entra no teu projeto Supabase.

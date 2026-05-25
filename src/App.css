@@ -146,6 +146,10 @@ pre {
   color: var(--muted);
 }
 
+.auth-manual-button {
+  margin-top: 16px;
+}
+
 .mode-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -222,6 +226,7 @@ textarea:focus {
 .primary-action,
 .ghost-action,
 .danger-action,
+.manual-button,
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -264,6 +269,25 @@ textarea:focus {
 
 .ghost-action:hover {
   border-color: var(--brand-cyan);
+}
+
+.manual-button {
+  min-height: 38px;
+  padding: 0 12px;
+  color: var(--brand-blue);
+  border-color: var(--border);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.manual-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.manual-button:hover {
+  border-color: var(--brand-cyan);
+  background: var(--brand-cyan-soft);
 }
 
 .danger-action {
@@ -713,6 +737,91 @@ tbody tr:last-child td {
   min-width: 88px;
 }
 
+.manual-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(12, 34, 50, 0.52);
+}
+
+.manual-dialog {
+  width: min(900px, 100%);
+  max-height: min(820px, calc(100svh - 44px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.manual-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+
+.manual-header h2 {
+  margin: 3px 0 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.manual-kicker {
+  margin: 0;
+  color: var(--brand-blue);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.manual-body {
+  display: grid;
+  gap: 0;
+  overflow: auto;
+  padding: 4px 22px 22px;
+}
+
+.manual-section {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.manual-section:last-child {
+  border-bottom: 0;
+}
+
+.manual-section h3 {
+  margin: 0 0 10px;
+  color: var(--brand-blue);
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.manual-section ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+  color: var(--text);
+}
+
+.manual-section li {
+  padding-left: 2px;
+  line-height: 1.5;
+}
+
 @media (max-width: 1080px) {
   .app-shell {
     padding: 18px;
@@ -763,6 +872,23 @@ tbody tr:last-child td {
   .account-box {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .manual-overlay {
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .manual-dialog {
+    max-height: calc(100svh - 28px);
+  }
+
+  .manual-header {
+    padding: 18px;
+  }
+
+  .manual-body {
+    padding: 2px 18px 18px;
   }
 
   .demo-banner {
