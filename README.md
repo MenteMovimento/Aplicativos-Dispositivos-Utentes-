@@ -10,6 +10,7 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
 - Importacao e exportacao CSV compativel com Google Sheets.
 - Regras de acesso com perfis: `admin`, `manager` e `member`.
+- Area de utilizadores para administradores gerirem permissoes.
 
 ## Google Sheets
 
@@ -50,6 +51,8 @@ update public.profiles
 set role = 'manager'
 where id = 'ID_DO_UTILIZADOR';
 ```
+
+Para ativar a area de gestao de utilizadores num projeto Supabase ja existente, executa tambem o conteudo de `supabase/user-management.sql` no SQL Editor.
 
 ## Executar localmente
 

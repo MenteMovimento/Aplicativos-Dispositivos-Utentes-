@@ -6,6 +6,8 @@ export type Profile = {
   id: string
   full_name: string | null
   role: MemberRole
+  created_at?: string
+  updated_at?: string
 }
 
 export type Device = {

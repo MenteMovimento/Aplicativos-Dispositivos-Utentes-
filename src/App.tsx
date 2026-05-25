@@ -23,8 +23,10 @@ import {
   RefreshCw,
   Save,
   Search,
+  ShieldCheck,
   Trash2,
   Upload,
+  UsersRound,
   X,
 } from 'lucide-react'
 import './App.css'
@@ -46,6 +48,7 @@ import {
 import type { Device, DeviceForm, DeviceStatus, RepairColumnKey, Profile } from './types'
 
 const deviceStatuses: DeviceStatus[] = ['active', 'maintenance', 'retired']
+const memberRoles: Profile['role'][] = ['admin', 'manager', 'member']
 
 const statusLabels: Record<DeviceStatus, string> = {
   active: 'Ativo',
@@ -109,6 +112,15 @@ const manualSections = [
       'Depois de apagar tudo, a acao nao pode ser desfeita. Exporta um CSV antes se precisares de copia.',
     ],
   },
+  {
+    title: '7. Gerir utilizadores',
+    steps: [
+      'Entra com uma conta Administrador e abre a aba Utilizadores.',
+      'Para criar um utilizador novo, usa Criar conta no ecrã de login.',
+      'Na tabela, altera a permissão para Administrador, Gestor ou Membro.',
+      'A tua própria permissão fica bloqueada para evitar perderes acesso de administrador.',
+    ],
+  },
 ]
 
 const emptyDeviceForm: DeviceForm = {
@@ -121,6 +133,7 @@ const emptyDeviceForm: DeviceForm = {
 }
 
 const demoStorageKey = 'mentemovimento-demo-devices'
+const demoProfilesStorageKey = 'mentemovimento-demo-profiles'
 
 const initialDemoDevices: Device[] = [
   {
@@ -151,6 +164,30 @@ const initialDemoDevices: Device[] = [
   },
 ]
 
+const initialDemoProfiles: Profile[] = [
+  {
+    id: 'demo-admin',
+    full_name: 'Administrador demo',
+    role: 'admin',
+    created_at: '2026-05-22T09:00:00.000Z',
+    updated_at: '2026-05-22T09:00:00.000Z',
+  },
+  {
+    id: 'demo-manager',
+    full_name: 'Gestor demo',
+    role: 'manager',
+    created_at: '2026-05-22T09:20:00.000Z',
+    updated_at: '2026-05-22T09:20:00.000Z',
+  },
+  {
+    id: 'demo-member',
+    full_name: 'Membro demo',
+    role: 'member',
+    created_at: '2026-05-22T09:40:00.000Z',
+    updated_at: '2026-05-22T09:40:00.000Z',
+  },
+]
+
 const createDemoId = () => globalThis.crypto?.randomUUID?.() ?? `demo-${Date.now()}`
 
 const loadDemoDevices = () => {
@@ -166,15 +203,45 @@ const persistDemoDevices = (nextDevices: Device[]) => {
   window.localStorage.setItem(demoStorageKey, JSON.stringify(nextDevices))
 }
 
+const loadDemoProfiles = () => {
+  try {
+    const storedProfiles = window.localStorage.getItem(demoProfilesStorageKey)
+    return storedProfiles ? (JSON.parse(storedProfiles) as Profile[]) : initialDemoProfiles
+  } catch {
+    return initialDemoProfiles
+  }
+}
+
+const persistDemoProfiles = (nextProfiles: Profile[]) => {
+  window.localStorage.setItem(demoProfilesStorageKey, JSON.stringify(nextProfiles))
+}
+
+const formatProfileDate = (value?: string) => {
+  if (!value) return 'N/A'
+
+  return new Intl.DateTimeFormat('pt-PT', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value))
+}
+
+const getProfileDisplayName = (userProfile: Profile) =>
+  userProfile.full_name?.trim() || 'Sem nome'
+
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profiles, setProfiles] = useState<Profile[]>(() =>
+    isSupabaseConfigured ? [] : loadDemoProfiles(),
+  )
   const [devices, setDevices] = useState<Device[]>(() =>
     isSupabaseConfigured ? [] : loadDemoDevices(),
   )
   const [isLoading, setIsLoading] = useState(isSupabaseConfigured)
+  const [isUsersLoading, setIsUsersLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [savingProfileId, setSavingProfileId] = useState<string | null>(null)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authLoading, setAuthLoading] = useState(false)
   const [authForm, setAuthForm] = useState({
@@ -188,14 +255,18 @@ function App() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
+  const [activeView, setActiveView] = useState<'devices' | 'users'>('devices')
   const [isManualOpen, setIsManualOpen] = useState(false)
   const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const isDemoMode = !isSupabaseConfigured
   const currentRole: Profile['role'] = isDemoMode ? 'admin' : (profile?.role ?? 'member')
+  const currentProfileId = isDemoMode ? 'demo-admin' : profile?.id
   const currentEmail = session?.user.email ?? 'demo@mentemovimento.pt'
   const isAuthenticated = isDemoMode || Boolean(session)
   const canManageDevices = isDemoMode || currentRole === 'admin' || currentRole === 'manager'
+  const canManageUsers = isDemoMode || currentRole === 'admin'
+  const selectedView = canManageUsers ? activeView : 'devices'
 
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return
@@ -228,6 +299,23 @@ function App() {
     setDevices((data as Device[]) ?? [])
   }, [])
 
+  const loadProfiles = useCallback(async () => {
+    if (isDemoMode) {
+      setProfiles(loadDemoProfiles())
+      return
+    }
+
+    if (!supabase) return
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, created_at, updated_at')
+      .order('created_at', { ascending: true })
+
+    if (error) throw error
+    setProfiles((data as Profile[]) ?? [])
+  }, [isDemoMode])
+
   const refreshData = useCallback(
     async (currentSession: Session) => {
       setIsLoading(true)
@@ -243,6 +331,25 @@ function App() {
     },
     [loadDevices, loadProfile],
   )
+
+  const refreshUsers = useCallback(async () => {
+    if (!canManageUsers) return
+
+    setIsUsersLoading(true)
+    setAuthError(null)
+
+    try {
+      await loadProfiles()
+    } catch (error) {
+      setAuthError(
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel carregar os utilizadores.',
+      )
+    } finally {
+      setIsUsersLoading(false)
+    }
+  }, [canManageUsers, loadProfiles])
 
   useEffect(() => {
     if (!supabase) return
@@ -278,6 +385,8 @@ function App() {
       }
 
       setProfile(null)
+      setProfiles([])
+      setActiveView('devices')
       setDevices([])
       setIsLoading(false)
     })
@@ -593,6 +702,57 @@ function App() {
     setDevices([])
     cancelEditing()
     setNotice('Todos os dispositivos foram apagados.')
+  }
+
+  const updateProfileRole = async (targetProfile: Profile, nextRole: Profile['role']) => {
+    if (!canManageUsers || targetProfile.role === nextRole) return
+
+    if (targetProfile.id === currentProfileId) {
+      setNotice('Nao podes alterar a permissao da tua propria conta.')
+      return
+    }
+
+    setSavingProfileId(targetProfile.id)
+    setAuthError(null)
+    setNotice(null)
+
+    try {
+      if (isDemoMode) {
+        const updatedAt = new Date().toISOString()
+        const nextProfiles = profiles.map((item) =>
+          item.id === targetProfile.id ? { ...item, role: nextRole, updated_at: updatedAt } : item,
+        )
+
+        setProfiles(nextProfiles)
+        persistDemoProfiles(nextProfiles)
+        setNotice(`Permissao de ${getProfileDisplayName(targetProfile)} atualizada.`)
+        return
+      }
+
+      if (!supabase) return
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ role: nextRole })
+        .eq('id', targetProfile.id)
+        .select('id, full_name, role, created_at, updated_at')
+        .single()
+
+      if (error) throw error
+
+      setProfiles((currentProfiles) =>
+        currentProfiles.map((item) => (item.id === targetProfile.id ? (data as Profile) : item)),
+      )
+      setNotice(`Permissao de ${getProfileDisplayName(targetProfile)} atualizada.`)
+    } catch (error) {
+      setAuthError(
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel atualizar a permissao do utilizador.',
+      )
+    } finally {
+      setSavingProfileId(null)
+    }
   }
 
   const exportDevicesCsv = () => {
@@ -916,6 +1076,32 @@ function App() {
         </section>
       )}
 
+      {canManageUsers && (
+        <nav className="view-tabs" aria-label="Areas de gestao">
+          <button
+            type="button"
+            className={selectedView === 'devices' ? 'active' : ''}
+            onClick={() => setActiveView('devices')}
+          >
+            <ClipboardList aria-hidden="true" />
+            Dispositivos
+          </button>
+          <button
+            type="button"
+            className={selectedView === 'users' ? 'active' : ''}
+            onClick={() => {
+              setActiveView('users')
+              void refreshUsers()
+            }}
+          >
+            <UsersRound aria-hidden="true" />
+            Utilizadores
+          </button>
+        </nav>
+      )}
+
+      {selectedView === 'devices' ? (
+        <>
       <section className="stats-grid" aria-label="Resumo dos dispositivos">
         <article>
           <span>Total</span>
@@ -1234,6 +1420,125 @@ function App() {
           )}
         </section>
       </div>
+        </>
+      ) : (
+        <section className="users-panel" aria-labelledby="users-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="users-title">Utilizadores</h2>
+              <p>{profiles.length} perfis registados</p>
+            </div>
+            <button
+              type="button"
+              className="ghost-action"
+              onClick={() => void refreshUsers()}
+              disabled={isUsersLoading}
+            >
+              {isUsersLoading ? (
+                <Loader2 className="spin" aria-hidden="true" />
+              ) : (
+                <RefreshCw aria-hidden="true" />
+              )}
+              Atualizar
+            </button>
+          </div>
+
+          <div className="users-note">
+            <ShieldCheck aria-hidden="true" />
+            <p>
+              Novas contas sao criadas em Criar conta. Nesta area, o administrador altera a
+              permissao de cada perfil.
+            </p>
+          </div>
+
+          {authError && (
+            <p className="feedback error">
+              <CircleAlert size={18} aria-hidden="true" />
+              {authError}
+            </p>
+          )}
+          {notice && (
+            <p className="feedback success">
+              <CheckCircle2 size={18} aria-hidden="true" />
+              {notice}
+            </p>
+          )}
+
+          {isUsersLoading ? (
+            <div className="loading-state">
+              <Loader2 className="spin" aria-hidden="true" />
+              A carregar utilizadores
+            </div>
+          ) : profiles.length === 0 ? (
+            <div className="empty-state">
+              <UsersRound aria-hidden="true" />
+              <p>Nenhum utilizador encontrado.</p>
+            </div>
+          ) : (
+            <div className="table-wrap users-table-wrap">
+              <table className="users-table">
+                <thead>
+                  <tr>
+                    <th>Utilizador</th>
+                    <th>Permissao atual</th>
+                    <th>Alterar permissao</th>
+                    <th>Criado</th>
+                    <th>Atualizado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profiles.map((userProfile) => {
+                    const isCurrentProfile = userProfile.id === currentProfileId
+
+                    return (
+                      <tr key={userProfile.id}>
+                        <td>
+                          <div className="user-identity">
+                            <strong>{getProfileDisplayName(userProfile)}</strong>
+                            {isCurrentProfile && <span>Tu</span>}
+                            <small>{userProfile.id}</small>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`role-badge role-${userProfile.role}`}>
+                            {roleLabels[userProfile.role]}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="role-control">
+                            <select
+                              value={userProfile.role}
+                              onChange={(event) =>
+                                void updateProfileRole(
+                                  userProfile,
+                                  event.target.value as Profile['role'],
+                                )
+                              }
+                              disabled={isCurrentProfile || savingProfileId === userProfile.id}
+                              aria-label={`Alterar permissao de ${getProfileDisplayName(userProfile)}`}
+                            >
+                              {memberRoles.map((role) => (
+                                <option key={role} value={role}>
+                                  {roleLabels[role]}
+                                </option>
+                              ))}
+                            </select>
+                            {isCurrentProfile && (
+                              <span className="role-helper">Protegido para manter o teu acesso.</span>
+                            )}
+                          </div>
+                        </td>
+                        <td>{formatProfileDate(userProfile.created_at)}</td>
+                        <td>{formatProfileDate(userProfile.updated_at)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {manualDialog}
     </main>

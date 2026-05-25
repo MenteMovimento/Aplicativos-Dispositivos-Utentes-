@@ -92,7 +92,8 @@ pre {
 .setup-panel,
 .auth-panel,
 .form-panel,
-.list-panel {
+.list-panel,
+.users-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -470,6 +471,56 @@ textarea:focus {
   background: var(--brand-cyan-soft);
 }
 
+.role-badge.role-admin {
+  color: var(--brand-blue-strong);
+  background: #dcebff;
+}
+
+.role-badge.role-manager {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.role-badge.role-member {
+  color: #526473;
+  background: #edf3f6;
+}
+
+.view-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(16, 43, 61, 0.05);
+}
+
+.view-tabs button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 14px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 850;
+}
+
+.view-tabs button.active {
+  color: var(--brand-blue);
+  background: var(--brand-cyan-soft);
+}
+
+.view-tabs svg {
+  width: 18px;
+  height: 18px;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -507,7 +558,8 @@ textarea:focus {
 }
 
 .form-panel,
-.list-panel {
+.list-panel,
+.users-panel {
   padding: 20px;
 }
 
@@ -737,6 +789,87 @@ tbody tr:last-child td {
   min-width: 88px;
 }
 
+.users-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
+.users-note svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  color: var(--brand-blue);
+}
+
+.users-note p {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.users-table {
+  min-width: 900px;
+}
+
+.users-table th:first-child,
+.users-table td:first-child {
+  width: 34%;
+}
+
+.user-identity {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.user-identity strong {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-identity span {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--brand-blue);
+  background: var(--brand-cyan-soft);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.user-identity small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-control {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.role-control select {
+  min-height: 40px;
+}
+
+.role-helper {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: normal;
+}
+
 .manual-overlay {
   position: fixed;
   inset: 0;
@@ -845,7 +978,8 @@ tbody tr:last-child td {
   .setup-panel,
   .auth-panel,
   .form-panel,
-  .list-panel {
+  .list-panel,
+  .users-panel {
     padding: 18px;
   }
 
@@ -894,6 +1028,12 @@ tbody tr:last-child td {
   .demo-banner {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .view-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .stats-grid {

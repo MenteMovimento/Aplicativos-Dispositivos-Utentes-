@@ -39,3 +39,11 @@
 2. Para apagar tudo, usa `Apagar tudo`.
 3. O sistema pede confirmacao e exige escrever `APAGAR`.
 4. Depois de apagar tudo, nao ha recuperacao automatica. Exporta CSV antes se precisares de copia.
+
+## 7. Gerir utilizadores
+
+1. Entra com uma conta `Administrador`.
+2. Abre a aba `Utilizadores`.
+3. Para criar uma conta nova, termina a sessao e usa `Criar conta` no ecrã de login.
+4. Na tabela de utilizadores, muda a permissao para `Administrador`, `Gestor` ou `Membro`.
+5. A tua propria permissao fica bloqueada para evitares perder acesso de administrador.
