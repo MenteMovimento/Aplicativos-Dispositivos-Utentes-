@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import './App.css'
+import { BrandLogo } from './components/BrandLogo'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import type { Device, DeviceForm, DeviceStatus, Profile } from './types'
 
@@ -463,12 +464,10 @@ function App() {
     return (
       <main className="auth-shell">
         <section className="auth-panel" aria-labelledby="auth-title">
-          <div className="auth-mark">
-            <ClipboardList aria-hidden="true" />
-          </div>
+          <BrandLogo className="auth-logo" />
           <div>
-            <p className="eyebrow">Mentemovimento</p>
             <h1 id="auth-title">Gestor de dispositivos</h1>
+            <p className="auth-subtitle">Acesso interno da associacao</p>
           </div>
 
           <div className="mode-tabs" role="tablist" aria-label="Autenticacao">
@@ -553,8 +552,8 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Mentemovimento</p>
+        <div className="brand-heading">
+          <BrandLogo compact />
           <h1>Gestor de dispositivos</h1>
         </div>
         <div className="account-box">
