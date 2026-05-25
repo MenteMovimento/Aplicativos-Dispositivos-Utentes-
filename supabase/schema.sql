@@ -3,6 +3,7 @@ create type public.device_status as enum ('active', 'maintenance', 'retired');
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  email text unique,
   full_name text,
   role public.member_role not null default 'member',
   created_at timestamptz not null default now(),
@@ -60,8 +61,8 @@ begin
     end
   into next_role;
 
-  insert into public.profiles (id, full_name, role)
-  values (new.id, nullif(new.raw_user_meta_data->>'full_name', ''), next_role)
+  insert into public.profiles (id, email, full_name, role)
+  values (new.id, new.email, nullif(new.raw_user_meta_data->>'full_name', ''), next_role)
   on conflict (id) do nothing;
 
   return new;

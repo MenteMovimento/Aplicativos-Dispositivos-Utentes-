@@ -40,6 +40,7 @@ Consulta `MANUAL.md` ou usa o botao `Manual` dentro da aplicacao.
 ```env
 VITE_SUPABASE_URL=https://o-teu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=a_tua_chave_anon
+SUPABASE_SERVICE_ROLE_KEY=a_tua_chave_service_role
 ```
 
 A primeira conta criada fica automaticamente com perfil `admin`. As contas seguintes ficam como `member`.
@@ -53,6 +54,8 @@ where id = 'ID_DO_UTILIZADOR';
 ```
 
 Para ativar a area de gestao de utilizadores num projeto Supabase ja existente, executa tambem o conteudo de `supabase/user-management.sql` no SQL Editor.
+
+A chave `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas na Vercel ou no ambiente do servidor. Nunca uses essa chave com prefixo `VITE_`.
 
 ## Executar localmente
 
@@ -71,6 +74,7 @@ npm run dev
 ```env
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
 ```
 
 5. Faz deploy.

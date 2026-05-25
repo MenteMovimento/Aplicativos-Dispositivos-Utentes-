@@ -4,6 +4,7 @@ export type MemberRole = 'admin' | 'manager' | 'member'
 
 export type Profile = {
   id: string
+  email?: string | null
   full_name: string | null
   role: MemberRole
   created_at?: string

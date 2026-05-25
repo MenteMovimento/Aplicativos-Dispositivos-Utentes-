@@ -814,6 +814,49 @@ tbody tr:last-child td {
   line-height: 1.45;
 }
 
+.user-create-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.user-create-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.user-create-heading > svg {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  color: var(--brand-blue);
+}
+
+.user-create-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.user-create-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.user-create-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .users-table {
   min-width: 900px;
 }
@@ -1041,6 +1084,7 @@ tbody tr:last-child td {
   }
 
   .device-form,
+  .user-create-form,
   .filters-row,
   .section-grid {
     grid-template-columns: 1fr;

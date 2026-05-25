@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  UserPlus,
   UsersRound,
   X,
 } from 'lucide-react'
@@ -116,7 +117,7 @@ const manualSections = [
     title: '7. Gerir utilizadores',
     steps: [
       'Entra com uma conta Administrador e abre a aba Utilizadores.',
-      'Para criar um utilizador novo, usa Criar conta no ecrã de login.',
+      'Preenche nome, email, palavra-passe temporaria e permissao no formulario Criar utilizador.',
       'Na tabela, altera a permissão para Administrador, Gestor ou Membro.',
       'A tua própria permissão fica bloqueada para evitar perderes acesso de administrador.',
     ],
@@ -167,6 +168,7 @@ const initialDemoDevices: Device[] = [
 const initialDemoProfiles: Profile[] = [
   {
     id: 'demo-admin',
+    email: 'admin.demo@mentemovimento.pt',
     full_name: 'Administrador demo',
     role: 'admin',
     created_at: '2026-05-22T09:00:00.000Z',
@@ -174,6 +176,7 @@ const initialDemoProfiles: Profile[] = [
   },
   {
     id: 'demo-manager',
+    email: 'gestor.demo@mentemovimento.pt',
     full_name: 'Gestor demo',
     role: 'manager',
     created_at: '2026-05-22T09:20:00.000Z',
@@ -181,6 +184,7 @@ const initialDemoProfiles: Profile[] = [
   },
   {
     id: 'demo-member',
+    email: 'membro.demo@mentemovimento.pt',
     full_name: 'Membro demo',
     role: 'member',
     created_at: '2026-05-22T09:40:00.000Z',
@@ -228,6 +232,13 @@ const formatProfileDate = (value?: string) => {
 const getProfileDisplayName = (userProfile: Profile) =>
   userProfile.full_name?.trim() || 'Sem nome'
 
+const emptyCreateUserForm = {
+  fullName: '',
+  email: '',
+  password: '',
+  role: 'member' as Profile['role'],
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -241,6 +252,7 @@ function App() {
   const [isUsersLoading, setIsUsersLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authLoading, setAuthLoading] = useState(false)
@@ -252,6 +264,7 @@ function App() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [deviceForm, setDeviceForm] = useState<DeviceForm>(emptyDeviceForm)
+  const [createUserForm, setCreateUserForm] = useState(emptyCreateUserForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
@@ -273,7 +286,7 @@ function App() {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role')
+      .select('id, email, full_name, role')
       .eq('id', userId)
       .maybeSingle()
 
@@ -281,6 +294,7 @@ function App() {
     setProfile(
       (data as Profile | null) ?? {
         id: userId,
+        email: null,
         full_name: null,
         role: 'member',
       },
@@ -309,7 +323,7 @@ function App() {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, created_at, updated_at')
+      .select('id, email, full_name, role, created_at, updated_at')
       .order('created_at', { ascending: true })
 
     if (error) throw error
@@ -704,6 +718,80 @@ function App() {
     setNotice('Todos os dispositivos foram apagados.')
   }
 
+  const createUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!canManageUsers) return
+
+    const payload = {
+      fullName: createUserForm.fullName.trim(),
+      email: createUserForm.email.trim().toLowerCase(),
+      password: createUserForm.password,
+      role: createUserForm.role,
+    }
+
+    setIsCreatingUser(true)
+    setAuthError(null)
+    setNotice(null)
+
+    try {
+      if (!payload.fullName || !payload.email || !payload.password) {
+        throw new Error('Preenche nome, email e palavra-passe.')
+      }
+
+      if (payload.password.length < 6) {
+        throw new Error('A palavra-passe deve ter pelo menos 6 caracteres.')
+      }
+
+      if (profiles.some((userProfile) => userProfile.email?.toLowerCase() === payload.email)) {
+        throw new Error('Ja existe um utilizador com esse email.')
+      }
+
+      if (isDemoMode) {
+        const now = new Date().toISOString()
+        const nextProfile: Profile = {
+          id: createDemoId(),
+          email: payload.email,
+          full_name: payload.fullName,
+          role: payload.role,
+          created_at: now,
+          updated_at: now,
+        }
+        const nextProfiles = [...profiles, nextProfile]
+
+        setProfiles(nextProfiles)
+        persistDemoProfiles(nextProfiles)
+        setCreateUserForm(emptyCreateUserForm)
+        setNotice('Utilizador criado em modo demonstracao.')
+        return
+      }
+
+      if (!session) return
+
+      const response = await fetch('/api/admin-users', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+      const result = (await response.json()) as { error?: string; profile?: Profile }
+
+      if (!response.ok || !result.profile) {
+        throw new Error(result.error ?? 'Nao foi possivel criar o utilizador.')
+      }
+
+      setProfiles((currentProfiles) => [...currentProfiles, result.profile as Profile])
+      setCreateUserForm(emptyCreateUserForm)
+      setNotice('Utilizador criado com a permissao definida.')
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Nao foi possivel criar o utilizador.')
+    } finally {
+      setIsCreatingUser(false)
+    }
+  }
+
   const updateProfileRole = async (targetProfile: Profile, nextRole: Profile['role']) => {
     if (!canManageUsers || targetProfile.role === nextRole) return
 
@@ -735,7 +823,7 @@ function App() {
         .from('profiles')
         .update({ role: nextRole })
         .eq('id', targetProfile.id)
-        .select('id, full_name, role, created_at, updated_at')
+        .select('id, email, full_name, role, created_at, updated_at')
         .single()
 
       if (error) throw error
@@ -1446,10 +1534,90 @@ function App() {
           <div className="users-note">
             <ShieldCheck aria-hidden="true" />
             <p>
-              Novas contas sao criadas em Criar conta. Nesta area, o administrador altera a
-              permissao de cada perfil.
+              Cria utilizadores nesta area e escolhe logo a permissao. A conta fica confirmada e
+              pronta para entrar com a palavra-passe definida.
             </p>
           </div>
+
+          <form className="user-create-panel" onSubmit={createUser}>
+            <div className="user-create-heading">
+              <UserPlus aria-hidden="true" />
+              <div>
+                <h3>Criar utilizador</h3>
+                <p>Define o acesso antes de entregar os dados de entrada ao colega.</p>
+              </div>
+            </div>
+            <div className="user-create-form">
+              <label>
+                Nome
+                <input
+                  required
+                  value={createUserForm.fullName}
+                  onChange={(event) =>
+                    setCreateUserForm((current) => ({
+                      ...current,
+                      fullName: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  required
+                  type="email"
+                  value={createUserForm.email}
+                  onChange={(event) =>
+                    setCreateUserForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Palavra-passe temporaria
+                <input
+                  required
+                  minLength={6}
+                  type="password"
+                  value={createUserForm.password}
+                  onChange={(event) =>
+                    setCreateUserForm((current) => ({
+                      ...current,
+                      password: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Permissao
+                <select
+                  value={createUserForm.role}
+                  onChange={(event) =>
+                    setCreateUserForm((current) => ({
+                      ...current,
+                      role: event.target.value as Profile['role'],
+                    }))
+                  }
+                >
+                  {memberRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {roleLabels[role]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button className="primary-action" type="submit" disabled={isCreatingUser}>
+              {isCreatingUser ? (
+                <Loader2 className="spin" aria-hidden="true" />
+              ) : (
+                <UserPlus aria-hidden="true" />
+              )}
+              Criar utilizador
+            </button>
+          </form>
 
           {authError && (
             <p className="feedback error">
@@ -1496,6 +1664,7 @@ function App() {
                           <div className="user-identity">
                             <strong>{getProfileDisplayName(userProfile)}</strong>
                             {isCurrentProfile && <span>Tu</span>}
+                            {userProfile.email && <small>{userProfile.email}</small>}
                             <small>{userProfile.id}</small>
                           </div>
                         </td>
