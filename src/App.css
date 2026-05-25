@@ -491,6 +491,23 @@ textarea:focus {
   font-weight: 700;
 }
 
+.list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.list-actions .ghost-action {
+  min-height: 40px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.import-file-input {
+  display: none;
+}
+
 .span-2 {
   grid-column: span 2;
 }
@@ -737,5 +754,14 @@ tbody tr:last-child td {
   .section-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .list-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .list-actions .ghost-action {
+    flex: 1 1 150px;
   }
 }

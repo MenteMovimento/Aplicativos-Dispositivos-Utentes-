@@ -8,7 +8,20 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 - Listagem, pesquisa e filtro por estado.
 - Criacao, edicao e remocao de dispositivos.
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
+- Importacao e exportacao CSV compativel com Google Sheets.
 - Regras de acesso com perfis: `admin`, `manager` e `member`.
+
+## Google Sheets
+
+Para exportar para Google Sheets, usa o botao `Exportar CSV` e importa o ficheiro no Sheets.
+
+Para importar do Google Sheets, exporta a folha como CSV e usa `Importar CSV`. As colunas aceites sao:
+
+```text
+ID, Numero de serie, Modelo, Local, Estado, Notas
+```
+
+Na importacao, o `Numero de serie` e usado para atualizar dispositivos existentes sem duplicar.
 
 ## Configurar Supabase
 

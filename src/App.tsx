@@ -1,9 +1,19 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { parse, unparse } from 'papaparse'
 import {
   CheckCircle2,
   CircleAlert,
   ClipboardList,
+  Download,
   Edit3,
   KeyRound,
   Loader2,
@@ -13,6 +23,7 @@ import {
   Save,
   Search,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react'
 import './App.css'
@@ -47,6 +58,33 @@ const dateFormatter = new Intl.DateTimeFormat('pt-PT', {
   dateStyle: 'short',
   timeStyle: 'short',
 })
+
+type ImportCsvRow = Record<string, string | undefined>
+
+const normalizeCsvKey = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+
+const readCsvField = (row: ImportCsvRow, aliases: string[]) => {
+  const normalizedAliases = aliases.map(normalizeCsvKey)
+  const match = Object.entries(row).find(([key]) =>
+    normalizedAliases.includes(normalizeCsvKey(key)),
+  )
+
+  return String(match?.[1] ?? '').trim()
+}
+
+const parseCsvStatus = (value: string): DeviceStatus => {
+  const status = normalizeCsvKey(value)
+
+  if (status === 'manutencao' || status === 'maintenance') return 'maintenance'
+  if (status === 'arquivado' || status === 'retired' || status === 'inativo') return 'retired'
+
+  return 'active'
+}
 
 const demoStorageKey = 'mentemovimento-demo-devices'
 
@@ -102,6 +140,7 @@ function App() {
   )
   const [isLoading, setIsLoading] = useState(isSupabaseConfigured)
   const [isSaving, setIsSaving] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authLoading, setAuthLoading] = useState(false)
   const [authForm, setAuthForm] = useState({
@@ -115,6 +154,7 @@ function App() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
+  const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const isDemoMode = !isSupabaseConfigured
   const currentRole: Profile['role'] = isDemoMode ? 'admin' : (profile?.role ?? 'member')
@@ -460,6 +500,151 @@ function App() {
     setNotice('Dispositivo apagado.')
   }
 
+  const exportDevicesCsv = () => {
+    if (filteredDevices.length === 0) {
+      setNotice('Nao ha dispositivos visiveis para exportar.')
+      return
+    }
+
+    const csv = unparse(
+      filteredDevices.map((device) => ({
+        ID: device.name,
+        'Numero de serie': device.serial_number,
+        Modelo: device.model,
+        Local: device.location ?? '',
+        Estado: statusLabels[device.status],
+        Notas: device.notes ?? '',
+        Atualizado: dateFormatter.format(new Date(device.updated_at)),
+      })),
+      { quotes: true },
+    )
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+
+    link.href = url
+    link.download = `dispositivos-mentemovimento-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    setNotice('CSV exportado para abrir no Google Sheets.')
+  }
+
+  const importDevicesCsv = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file || !canManageDevices) return
+
+    setIsImporting(true)
+    setAuthError(null)
+    setNotice(null)
+
+    parse<ImportCsvRow>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          if (results.errors.length > 0) {
+            throw new Error('O CSV tem linhas que nao foi possivel ler.')
+          }
+
+          const importedBySerial = new Map<string, DeviceForm>()
+
+          results.data.forEach((row, index) => {
+            const importedDevice: DeviceForm = {
+              name: readCsvField(row, ['ID', 'Nome', 'Identificador']),
+              serial_number: readCsvField(row, [
+                'Numero de serie',
+                'Número de série',
+                'Serial',
+                'Serial number',
+              ]),
+              model: readCsvField(row, ['Modelo', 'Model']),
+              location: readCsvField(row, ['Local', 'Localizacao', 'Localização', 'Location']),
+              status: parseCsvStatus(readCsvField(row, ['Estado', 'Status'])),
+              notes: readCsvField(row, ['Notas', 'Observacoes', 'Observações', 'Notes']),
+            }
+
+            if (!importedDevice.name || !importedDevice.serial_number || !importedDevice.model) {
+              throw new Error(`Linha ${index + 2}: ID, Numero de serie e Modelo sao obrigatorios.`)
+            }
+
+            importedBySerial.set(importedDevice.serial_number, importedDevice)
+          })
+
+          const importedDevices = Array.from(importedBySerial.values())
+
+          if (importedDevices.length === 0) {
+            throw new Error('O CSV nao tem dispositivos para importar.')
+          }
+
+          if (isDemoMode) {
+            const now = new Date().toISOString()
+            const nextDevicesBySerial = new Map(
+              devices.map((device) => [device.serial_number, device] as const),
+            )
+
+            importedDevices.forEach((importedDevice) => {
+              const existingDevice = nextDevicesBySerial.get(importedDevice.serial_number)
+
+              nextDevicesBySerial.set(importedDevice.serial_number, {
+                id: existingDevice?.id ?? createDemoId(),
+                name: importedDevice.name,
+                serial_number: importedDevice.serial_number,
+                model: importedDevice.model,
+                location: importedDevice.location || null,
+                status: importedDevice.status,
+                notes: importedDevice.notes || null,
+                created_by: existingDevice?.created_by ?? null,
+                updated_by: null,
+                created_at: existingDevice?.created_at ?? now,
+                updated_at: now,
+              })
+            })
+
+            const nextDevices = Array.from(nextDevicesBySerial.values()).sort((first, second) =>
+              second.updated_at.localeCompare(first.updated_at),
+            )
+
+            setDevices(nextDevices)
+            persistDemoDevices(nextDevices)
+            setNotice(`${importedDevices.length} dispositivos importados do CSV.`)
+            return
+          }
+
+          if (!supabase || !session) return
+
+          const { error } = await supabase.from('devices').upsert(
+            importedDevices.map((device) => ({
+              name: device.name,
+              serial_number: device.serial_number,
+              model: device.model,
+              location: device.location || null,
+              status: device.status,
+              notes: device.notes || null,
+              created_by: session.user.id,
+              updated_by: session.user.id,
+            })),
+            { onConflict: 'serial_number' },
+          )
+
+          if (error) throw error
+
+          await loadDevices()
+          setNotice(`${importedDevices.length} dispositivos importados/atualizados.`)
+        } catch (error) {
+          setAuthError(error instanceof Error ? error.message : 'Nao foi possivel importar o CSV.')
+        } finally {
+          setIsImporting(false)
+        }
+      },
+      error: (error) => {
+        setAuthError(error.message)
+        setIsImporting(false)
+      },
+    })
+  }
+
   if (!isAuthenticated) {
     return (
       <main className="auth-shell">
@@ -716,21 +901,49 @@ function App() {
               <h2 id="devices-title">Dispositivos</h2>
               <p>{filteredDevices.length} registos visiveis</p>
             </div>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => {
-                if (isDemoMode) {
-                  setNotice('Modo demonstracao atualizado.')
-                  return
-                }
+            <div className="list-actions">
+              <input
+                ref={csvInputRef}
+                className="import-file-input"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={importDevicesCsv}
+              />
+              <button type="button" className="ghost-action" onClick={exportDevicesCsv}>
+                <Download aria-hidden="true" />
+                Exportar CSV
+              </button>
+              {canManageDevices && (
+                <button
+                  type="button"
+                  className="ghost-action"
+                  onClick={() => csvInputRef.current?.click()}
+                  disabled={isImporting}
+                >
+                  {isImporting ? (
+                    <Loader2 className="spin" aria-hidden="true" />
+                  ) : (
+                    <Upload aria-hidden="true" />
+                  )}
+                  Importar CSV
+                </button>
+              )}
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => {
+                  if (isDemoMode) {
+                    setNotice('Modo demonstracao atualizado.')
+                    return
+                  }
 
-                if (session) void refreshData(session)
-              }}
-              title="Atualizar"
-            >
-              <RefreshCw aria-hidden="true" />
-            </button>
+                  if (session) void refreshData(session)
+                }}
+                title="Atualizar"
+              >
+                <RefreshCw aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           <div className="filters-row">
