@@ -35,6 +35,7 @@
 1. Clica em `Exportar CSV`.
 2. Abre ou importa o ficheiro no Google Sheets.
 3. Se usares pesquisa ou filtro antes de exportar, so os registos visiveis sao exportados.
+4. Usa `Ordenar por` e `Direcao` para exportar na ordem crescente ou decrescente que estiver visivel.
 
 ## 6. Apagar registos
 

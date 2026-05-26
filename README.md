@@ -8,7 +8,7 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 - Mensagens amigaveis para limite de emails e cooldown para reenviar confirmacao.
 - Tema claro/escuro com preferencia guardada no navegador.
 - Idiomas da interface: Portugues (Portugal) e Ingles.
-- Listagem, pesquisa e filtro por estado.
+- Listagem, pesquisa, filtro por estado e ordenacao crescente/decrescente por coluna.
 - Criacao, edicao e remocao de dispositivos.
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
 - Importacao e exportacao CSV compativel com Google Sheets.

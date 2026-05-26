@@ -779,7 +779,11 @@ textarea:focus {
 
 .filters-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(160px, 210px);
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(150px, 190px)
+    minmax(190px, 250px)
+    minmax(170px, 220px);
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -799,6 +803,18 @@ textarea:focus {
 
 .search-field input {
   padding-left: 38px;
+}
+
+.filter-control {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-control span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .table-wrap {
@@ -860,6 +876,49 @@ th {
   font-weight: 850;
   text-transform: uppercase;
   background: var(--surface-soft);
+}
+
+.repair-table th {
+  padding: 0;
+}
+
+.column-sort-button {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 10px 12px;
+  color: var(--table-heading);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.column-sort-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.column-sort-button svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.column-sort-button:hover,
+.column-sort-button.active {
+  color: var(--brand-blue);
+  background: var(--brand-cyan-soft);
+}
+
+.column-sort-button.active svg {
+  color: var(--brand-blue);
 }
 
 .repair-table th:first-child,

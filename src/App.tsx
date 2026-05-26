@@ -10,6 +10,9 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import { parse, unparse } from 'papaparse'
 import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ArrowUpDown,
   BookOpen,
   CheckCircle2,
   CircleAlert,
@@ -55,6 +58,8 @@ const deviceStatuses: DeviceStatus[] = ['active', 'maintenance', 'retired']
 const memberRoles: Profile['role'][] = ['admin', 'manager', 'member']
 type AppLanguage = 'pt' | 'en'
 type AppTheme = 'light' | 'dark'
+type SortColumnKey = (typeof repairTableColumns)[number]['key']
+type SortDirection = 'asc' | 'desc'
 
 const statusLabels: Record<AppLanguage, Record<DeviceStatus, string>> = {
   pt: {
@@ -89,6 +94,41 @@ const themeStorageKey = 'mentemovimento-theme'
 
 const stripOuterWhitespace = (value: string) => value.replace(/^\s+|\s+$/g, '')
 const normalizeEmail = (value: string) => value.toLowerCase()
+const sortCollator = new Intl.Collator('pt-PT', {
+  numeric: true,
+  sensitivity: 'base',
+})
+
+const parseSortableDate = (value: string) => {
+  const normalizedValue = stripOuterWhitespace(value)
+  const portugueseDateMatch = normalizedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+
+  if (portugueseDateMatch) {
+    const [, day, month, year] = portugueseDateMatch
+    return Date.UTC(Number(year), Number(month) - 1, Number(day))
+  }
+
+  const parsedDate = Date.parse(normalizedValue)
+  return Number.isNaN(parsedDate) ? null : parsedDate
+}
+
+const compareTableValues = (firstValue: string, secondValue: string) => {
+  const first = stripOuterWhitespace(firstValue)
+  const second = stripOuterWhitespace(secondValue)
+
+  if (!first && !second) return 0
+  if (!first) return 1
+  if (!second) return -1
+
+  const firstDate = parseSortableDate(first)
+  const secondDate = parseSortableDate(second)
+
+  if (firstDate !== null && secondDate !== null) {
+    return firstDate - secondDate
+  }
+
+  return sortCollator.compare(first, second)
+}
 
 type AuthCooldownAction = 'signup' | 'resend'
 
@@ -382,6 +422,7 @@ const translations = {
     all: 'Todos',
     appTitle: 'Gestor de dispositivos',
     archived: 'Arquivados',
+    ascending: 'Crescente',
     authTabLabel: 'Autenticacao',
     cancel: 'Cancelar',
     closeManual: 'Fechar manual',
@@ -432,6 +473,10 @@ const translations = {
     search: 'Pesquisar',
     signIn: 'Entrar',
     signOut: 'Sair',
+    sortAscending: 'Ordenacao crescente',
+    sortBy: 'Ordenar por',
+    sortDescending: 'Ordenacao decrescente',
+    sortDirection: 'Direcao',
     temporaryPassword: 'Palavra-passe temporaria',
     thisIsYou: 'Tu',
     total: 'Total',
@@ -488,6 +533,7 @@ const translations = {
     recentConfirmation: (seconds: number) =>
       `Ja foi enviado um email de confirmacao recentemente. Aguarda ${seconds} segundos antes de tentar novamente.`,
     roleUpdated: (name: string) => `Permissao de ${name} atualizada.`,
+    sortByColumn: (column: string) => `Ordenar por ${column}`,
     waitBeforeResend: (seconds: number) =>
       `Aguarda ${seconds} segundos antes de reenviar o email de confirmacao.`,
   },
@@ -497,6 +543,7 @@ const translations = {
     all: 'All',
     appTitle: 'Device manager',
     archived: 'Archived',
+    ascending: 'Ascending',
     authTabLabel: 'Authentication',
     cancel: 'Cancel',
     closeManual: 'Close manual',
@@ -547,6 +594,10 @@ const translations = {
     search: 'Search',
     signIn: 'Sign in',
     signOut: 'Sign out',
+    sortAscending: 'Ascending order',
+    sortBy: 'Sort by',
+    sortDescending: 'Descending order',
+    sortDirection: 'Direction',
     temporaryPassword: 'Temporary password',
     thisIsYou: 'You',
     total: 'Total',
@@ -603,6 +654,7 @@ const translations = {
     recentConfirmation: (seconds: number) =>
       `A confirmation email was sent recently. Wait ${seconds} seconds before trying again.`,
     roleUpdated: (name: string) => `${name}'s permission was updated.`,
+    sortByColumn: (column: string) => `Sort by ${column}`,
     waitBeforeResend: (seconds: number) =>
       `Wait ${seconds} seconds before resending the confirmation email.`,
   },
@@ -806,6 +858,8 @@ function App() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
+  const [sortColumn, setSortColumn] = useState<SortColumnKey>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [activeView, setActiveView] = useState<'devices' | 'users'>('devices')
   const [isManualOpen, setIsManualOpen] = useState(false)
   const csvInputRef = useRef<HTMLInputElement | null>(null)
@@ -826,6 +880,8 @@ function App() {
   const localizedStatusLabels = statusLabels[language]
   const manualSections = manualSectionsByLanguage[language]
   const translateRepairLabel = (label: string) => repairLabelTranslations[language][label] ?? label
+  const selectedSortColumn =
+    repairTableColumns.find((column) => column.key === sortColumn) ?? repairTableColumns[0]
 
   const loadProfile = useCallback(async (userId: string, userEmail?: string | null) => {
     if (!supabase) return
@@ -1022,8 +1078,10 @@ function App() {
 
   const filteredDevices = useMemo(() => {
     const query = stripOuterWhitespace(searchTerm).toLowerCase()
+    const selectedColumn =
+      repairTableColumns.find((column) => column.key === sortColumn) ?? repairTableColumns[0]
 
-    return devices.filter((device) => {
+    const matchingDevices = devices.filter((device) => {
       const matchesStatus = statusFilter === 'all' || device.status === statusFilter
       const matchesSearch =
         query.length === 0 ||
@@ -1034,7 +1092,22 @@ function App() {
 
       return matchesStatus && matchesSearch
     })
-  }, [devices, searchTerm, statusFilter])
+
+    return [...matchingDevices].sort((firstDevice, secondDevice) => {
+      const firstValue = getRepairTableValue(firstDevice, selectedColumn)
+      const secondValue = getRepairTableValue(secondDevice, selectedColumn)
+      const firstIsEmpty = stripOuterWhitespace(firstValue).length === 0
+      const secondIsEmpty = stripOuterWhitespace(secondValue).length === 0
+
+      if (firstIsEmpty && secondIsEmpty) return 0
+      if (firstIsEmpty) return 1
+      if (secondIsEmpty) return -1
+
+      const comparison = compareTableValues(firstValue, secondValue)
+
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+  }, [devices, searchTerm, sortColumn, sortDirection, statusFilter])
 
   const totals = useMemo(
     () => ({
@@ -1710,6 +1783,16 @@ function App() {
     }))
   }
 
+  const handleSortColumn = (columnKey: SortColumnKey) => {
+    if (sortColumn === columnKey) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortColumn(columnKey)
+    setSortDirection('asc')
+  }
+
   const appControls = (
     <div className="app-controls" aria-label={t.displaySettings}>
       <label className="language-control">
@@ -2219,6 +2302,31 @@ function App() {
                 </option>
               ))}
             </select>
+            <label className="filter-control">
+              <span>{t.sortBy}</span>
+              <select
+                value={sortColumn}
+                onChange={(event) => setSortColumn(event.target.value as SortColumnKey)}
+                aria-label={t.sortBy}
+              >
+                {repairTableColumns.map((column) => (
+                  <option key={column.key} value={column.key}>
+                    {translateRepairLabel(column.label)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-control">
+              <span>{t.sortDirection}</span>
+              <select
+                value={sortDirection}
+                onChange={(event) => setSortDirection(event.target.value as SortDirection)}
+                aria-label={`${t.sortDirection}: ${translateRepairLabel(selectedSortColumn.label)}`}
+              >
+                <option value="asc">{t.sortAscending}</option>
+                <option value="desc">{t.sortDescending}</option>
+              </select>
+            </label>
           </div>
 
           {authError && (
@@ -2255,9 +2363,42 @@ function App() {
                 </colgroup>
                 <thead>
                   <tr>
-                    {repairTableColumns.map((column) => (
-                      <th key={column.key}>{translateRepairLabel(column.label)}</th>
-                    ))}
+                    {repairTableColumns.map((column) => {
+                      const isActiveSort = sortColumn === column.key
+                      const translatedLabel = translateRepairLabel(column.label)
+
+                      return (
+                        <th
+                          key={column.key}
+                          aria-sort={
+                            isActiveSort
+                              ? sortDirection === 'asc'
+                                ? 'ascending'
+                                : 'descending'
+                              : 'none'
+                          }
+                        >
+                          <button
+                            type="button"
+                            className={`column-sort-button ${isActiveSort ? 'active' : ''}`}
+                            onClick={() => handleSortColumn(column.key)}
+                            title={t.sortByColumn(translatedLabel)}
+                            aria-label={t.sortByColumn(translatedLabel)}
+                          >
+                            <span>{translatedLabel}</span>
+                            {isActiveSort ? (
+                              sortDirection === 'asc' ? (
+                                <ArrowDownAZ aria-hidden="true" />
+                              ) : (
+                                <ArrowUpAZ aria-hidden="true" />
+                              )
+                            ) : (
+                              <ArrowUpDown aria-hidden="true" />
+                            )}
+                          </button>
+                        </th>
+                      )
+                    })}
                     {canManageDevices && <th aria-label={t.actions} />}
                   </tr>
                 </thead>
