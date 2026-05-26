@@ -13,18 +13,24 @@ import {
   ArrowDownAZ,
   ArrowUpAZ,
   ArrowUpDown,
+  BarChart3,
   BookOpen,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
   Download,
   Edit3,
+  ExternalLink,
+  FileText,
+  History,
   KeyRound,
   Languages,
   Loader2,
   LogOut,
   Moon,
+  Paperclip,
   Plus,
+  Printer,
   RefreshCw,
   Save,
   Search,
@@ -53,6 +59,7 @@ import {
   repairTableColumns,
 } from './repairInventory'
 import type { Device, DeviceForm, DeviceStatus, RepairColumnKey, Profile } from './types'
+import type { DeviceAttachment, DeviceHistoryEntry } from './types'
 
 const deviceStatuses: DeviceStatus[] = ['active', 'maintenance', 'retired']
 const memberRoles: Profile['role'][] = ['admin', 'manager', 'member']
@@ -129,6 +136,33 @@ const compareTableValues = (firstValue: string, secondValue: string) => {
 
   return sortCollator.compare(first, second)
 }
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+const formatFileSize = (size: number | null) => {
+  if (!size) return 'N/A'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const getCountItems = (values: string[]) =>
+  Array.from(
+    values.reduce((counts, value) => {
+      const key = stripOuterWhitespace(value) || 'N/A'
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+      return counts
+    }, new Map<string, number>()),
+  )
+    .map(([label, count]) => ({ label, count }))
+    .sort((first, second) => second.count - first.count || sortCollator.compare(first.label, second.label))
+    .slice(0, 6)
 
 type AuthCooldownAction = 'signup' | 'resend'
 
@@ -273,6 +307,12 @@ const getFriendlyDataError = (error: unknown, language: AppLanguage) => {
       : 'The required table does not exist in Supabase yet. Run the project SQL schema in the SQL Editor.'
   }
 
+  if (lowerMessage.includes('bucket') || lowerMessage.includes('storage')) {
+    return language === 'pt'
+      ? 'O armazenamento de anexos ainda nao esta configurado. Executa supabase/feature-upgrades.sql no SQL Editor.'
+      : 'Attachment storage is not configured yet. Run supabase/feature-upgrades.sql in the SQL Editor.'
+  }
+
   if (lowerMessage.includes('jwt') && lowerMessage.includes('expired')) {
     return language === 'pt' ? 'A tua sessao expirou. Sai e volta a entrar.' : 'Your session expired. Sign out and sign in again.'
   }
@@ -349,6 +389,15 @@ const manualSectionsByLanguage: Record<
         'A tua propria permissao fica bloqueada para evitar perderes acesso ao painel.',
       ],
     },
+    {
+      title: '8. Relatorios, anexos e estatisticas',
+      steps: [
+        'Usa Imprimir relatorio para gerar um relatorio dos registos visiveis.',
+        'Abre Estatisticas para ver totais, marcas, tecnicos, avarias e resultados finais.',
+        'Ao editar um dispositivo, usa Anexar foto/fatura para guardar fotos, PDFs ou faturas.',
+        'Executa supabase/feature-upgrades.sql para ativar anexos e historico em producao.',
+      ],
+    },
   ],
   en: [
     {
@@ -412,6 +461,15 @@ const manualSectionsByLanguage: Record<
         'Your own permission is locked to avoid losing access to the panel.',
       ],
     },
+    {
+      title: '8. Reports, attachments and statistics',
+      steps: [
+        'Use Print report to generate a report of the visible records.',
+        'Open Statistics to see totals, brands, technicians, faults and final results.',
+        'When editing a device, use Attach photo/invoice to store photos, PDFs or invoices.',
+        'Run supabase/feature-upgrades.sql to enable attachments and history in production.',
+      ],
+    },
   ],
 }
 
@@ -419,6 +477,8 @@ const translations = {
   pt: {
     addDevice: 'Adicionar dispositivo',
     actions: 'Acoes',
+    addAttachment: 'Anexar foto/fatura',
+    attachments: 'Anexos',
     all: 'Todos',
     appTitle: 'Gestor de dispositivos',
     archived: 'Arquivados',
@@ -440,20 +500,24 @@ const translations = {
       'Podes adicionar, editar e apagar dispositivos. Os dados ficam guardados neste navegador ate configurares o Supabase.',
     devices: 'Dispositivos',
     devicesSummary: 'Resumo dos dispositivos',
+    duplicateSerial: 'Numero de serie duplicado',
     displaySettings: 'Preferencias de visualizacao',
     edit: 'Editar',
     editDevice: 'Editar dispositivo',
     email: 'Email',
     exportCsv: 'Exportar CSV',
+    finalResults: 'Resultados finais',
     fixedRoleLabel: 'Permissao',
     filterByStatus: 'Filtrar por estado',
     formIdentification: 'Identificacao',
     help: 'Ajuda',
+    history: 'Historico',
     importCsv: 'Importar CSV',
     language: 'Idioma',
     lightTheme: 'Ativar tema claro',
     loading: 'A carregar',
     loadingUsers: 'A carregar utilizadores',
+    mostCommonBrands: 'Marcas mais comuns',
     manual: 'Manual',
     manualTitle: 'Manual de utilizacao',
     maintenance: 'Manutencao',
@@ -461,11 +525,14 @@ const translations = {
     name: 'Nome',
     newDevice: 'Novo dispositivo',
     noDevices: 'Nenhum dispositivo encontrado.',
+    noAttachments: 'Sem anexos para este dispositivo.',
+    noHistory: 'Sem historico para este dispositivo.',
     noName: 'Sem nome',
     noUsers: 'Nenhum utilizador encontrado.',
     password: 'Palavra-passe',
     permission: 'Permissao',
     protectedRole: 'Protegido para manter o teu acesso.',
+    printReport: 'Imprimir relatorio',
     refresh: 'Atualizar',
     registeredProfiles: 'perfis registados',
     resendConfirmation: 'Reenviar confirmacao',
@@ -477,6 +544,9 @@ const translations = {
     sortBy: 'Ordenar por',
     sortDescending: 'Ordenacao decrescente',
     sortDirection: 'Direcao',
+    statistics: 'Estatisticas',
+    storageSetupRequired:
+      'Para anexos e historico, executa supabase/feature-upgrades.sql no SQL Editor do Supabase.',
     temporaryPassword: 'Palavra-passe temporaria',
     thisIsYou: 'Tu',
     total: 'Total',
@@ -508,6 +578,7 @@ const translations = {
     deviceDeletedDemo: 'Dispositivo apagado em modo demonstracao.',
     deviceUpdated: 'Dispositivo atualizado.',
     deviceUpdatedDemo: 'Dispositivo atualizado em modo demonstracao.',
+    duplicateSerialImport: 'O CSV contem numeros de serie repetidos.',
     emailRegistered: 'Este email ja esta registado. Usa Entrar para aceder.',
     enterEmailToConfirm: 'Indica o email antes de pedir nova confirmacao.',
     fillRequiredDevice: 'Preenche o nome, numero de serie e modelo.',
@@ -521,12 +592,16 @@ const translations = {
     userCreated: 'Utilizador criado com a permissao definida.',
     userCreatedDemo: 'Utilizador criado em modo demonstracao.',
     userExists: 'Ja existe um utilizador com esse email.',
+    attachmentDeleted: 'Anexo apagado.',
+    attachmentUploaded: 'Anexo guardado.',
     resendIn: (seconds: number) => `Reenviar em ${seconds}s`,
     waitSeconds: (seconds: number) => `Aguarda ${seconds}s`,
     changePermissionFor: (name: string) => `Alterar permissao de ${name}`,
     csvImported: (count: number) => `${count} dispositivos importados do CSV.`,
     csvImportedUpdated: (count: number) => `${count} dispositivos importados/atualizados.`,
     csvLineRequired: (row: number) => `Linha ${row}: ID, Nº Série e Modelo sao obrigatorios.`,
+    duplicateSerialFound: (serial: string) => `Ja existe um dispositivo com o Nº Série ${serial}.`,
+    duplicateSerialInCsv: (serial: string) => `O Nº Série ${serial} aparece mais do que uma vez no CSV.`,
     deleteAllConfirm: (count: number) =>
       `Vais apagar TODOS os ${count} dispositivos. Esta acao nao pode ser desfeita. Continuar?`,
     deleteOne: (name: string) => `Apagar "${name}"?`,
@@ -540,6 +615,8 @@ const translations = {
   en: {
     addDevice: 'Add device',
     actions: 'Actions',
+    addAttachment: 'Attach photo/invoice',
+    attachments: 'Attachments',
     all: 'All',
     appTitle: 'Device manager',
     archived: 'Archived',
@@ -561,20 +638,24 @@ const translations = {
       'You can add, edit and delete devices. Data stays in this browser until Supabase is configured.',
     devices: 'Devices',
     devicesSummary: 'Devices summary',
+    duplicateSerial: 'Duplicate serial number',
     displaySettings: 'Display preferences',
     edit: 'Edit',
     editDevice: 'Edit device',
     email: 'Email',
     exportCsv: 'Export CSV',
+    finalResults: 'Final results',
     fixedRoleLabel: 'Permission',
     filterByStatus: 'Filter by status',
     formIdentification: 'Identification',
     help: 'Help',
+    history: 'History',
     importCsv: 'Import CSV',
     language: 'Language',
     lightTheme: 'Turn on light theme',
     loading: 'Loading',
     loadingUsers: 'Loading users',
+    mostCommonBrands: 'Most common brands',
     maintenance: 'Maintenance',
     managementAreas: 'Management areas',
     manual: 'Manual',
@@ -582,11 +663,14 @@ const translations = {
     name: 'Name',
     newDevice: 'New device',
     noDevices: 'No devices found.',
+    noAttachments: 'No attachments for this device.',
+    noHistory: 'No history for this device.',
     noName: 'No name',
     noUsers: 'No users found.',
     password: 'Password',
     permission: 'Permission',
     protectedRole: 'Protected to keep your access.',
+    printReport: 'Print report',
     refresh: 'Refresh',
     registeredProfiles: 'registered profiles',
     resendConfirmation: 'Resend confirmation',
@@ -598,6 +682,9 @@ const translations = {
     sortBy: 'Sort by',
     sortDescending: 'Descending order',
     sortDirection: 'Direction',
+    statistics: 'Statistics',
+    storageSetupRequired:
+      'For attachments and history, run supabase/feature-upgrades.sql in the Supabase SQL Editor.',
     temporaryPassword: 'Temporary password',
     thisIsYou: 'You',
     total: 'Total',
@@ -629,6 +716,7 @@ const translations = {
     deviceDeletedDemo: 'Device deleted in demo mode.',
     deviceUpdated: 'Device updated.',
     deviceUpdatedDemo: 'Device updated in demo mode.',
+    duplicateSerialImport: 'The CSV contains repeated serial numbers.',
     emailRegistered: 'This email is already registered. Use Sign in to access.',
     enterEmailToConfirm: 'Enter the email before requesting a new confirmation.',
     fillRequiredDevice: 'Fill name, serial number and model.',
@@ -642,12 +730,16 @@ const translations = {
     userCreated: 'User created with the defined permission.',
     userCreatedDemo: 'User created in demo mode.',
     userExists: 'A user with that email already exists.',
+    attachmentDeleted: 'Attachment deleted.',
+    attachmentUploaded: 'Attachment saved.',
     resendIn: (seconds: number) => `Resend in ${seconds}s`,
     waitSeconds: (seconds: number) => `Wait ${seconds}s`,
     changePermissionFor: (name: string) => `Change permission for ${name}`,
     csvImported: (count: number) => `${count} devices imported from CSV.`,
     csvImportedUpdated: (count: number) => `${count} devices imported/updated.`,
     csvLineRequired: (row: number) => `Row ${row}: ID, Serial No. and Model are required.`,
+    duplicateSerialFound: (serial: string) => `A device with Serial No. ${serial} already exists.`,
+    duplicateSerialInCsv: (serial: string) => `Serial No. ${serial} appears more than once in the CSV.`,
     deleteAllConfirm: (count: number) =>
       `You are about to delete ALL ${count} devices. This action cannot be undone. Continue?`,
     deleteOne: (name: string) => `Delete "${name}"?`,
@@ -860,9 +952,14 @@ function App() {
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
   const [sortColumn, setSortColumn] = useState<SortColumnKey>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [activeView, setActiveView] = useState<'devices' | 'users'>('devices')
+  const [activeView, setActiveView] = useState<'devices' | 'users' | 'stats'>('devices')
+  const [historyEntries, setHistoryEntries] = useState<DeviceHistoryEntry[]>([])
+  const [attachments, setAttachments] = useState<DeviceAttachment[]>([])
+  const [isLoadingDeviceExtras, setIsLoadingDeviceExtras] = useState(false)
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false)
   const [isManualOpen, setIsManualOpen] = useState(false)
   const csvInputRef = useRef<HTMLInputElement | null>(null)
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null)
 
   const isDemoMode = !isSupabaseConfigured
   const currentRole: Profile['role'] = isDemoMode ? 'admin' : (profile?.role ?? 'member')
@@ -996,6 +1093,66 @@ function App() {
     }
   }, [canManageUsers, language, loadProfiles])
 
+  const loadDeviceExtras = useCallback(
+    async (deviceId: string) => {
+      if (isDemoMode || !supabase) {
+        setHistoryEntries([])
+        setAttachments([])
+        return
+      }
+
+      setIsLoadingDeviceExtras(true)
+
+      try {
+        const [historyResult, attachmentsResult] = await Promise.all([
+          supabase
+            .from('device_history')
+            .select('*')
+            .eq('device_id', deviceId)
+            .order('created_at', { ascending: false })
+            .limit(12),
+          supabase
+            .from('device_attachments')
+            .select('*')
+            .eq('device_id', deviceId)
+            .order('created_at', { ascending: false }),
+        ])
+
+        if (historyResult.error) throw historyResult.error
+        if (attachmentsResult.error) throw attachmentsResult.error
+
+        setHistoryEntries((historyResult.data as DeviceHistoryEntry[]) ?? [])
+        setAttachments((attachmentsResult.data as DeviceAttachment[]) ?? [])
+      } catch {
+        setHistoryEntries([])
+        setAttachments([])
+      } finally {
+        setIsLoadingDeviceExtras(false)
+      }
+    },
+    [isDemoMode],
+  )
+
+  const recordDeviceHistory = useCallback(
+    async (device: Device, action: string, summary: string) => {
+      if (isDemoMode || !supabase) return
+
+      try {
+        await supabase.from('device_history').insert({
+          device_id: device.id,
+          device_name: device.name,
+          serial_number: device.serial_number,
+          action,
+          summary,
+          created_by: session?.user.id ?? null,
+        })
+      } catch {
+        // History is optional until the feature upgrade SQL is executed.
+      }
+    },
+    [isDemoMode, session],
+  )
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem(themeStorageKey, theme)
@@ -1109,6 +1266,19 @@ function App() {
     })
   }, [devices, searchTerm, sortColumn, sortDirection, statusFilter])
 
+  const duplicateSerialDevice = useMemo(() => {
+    const serial = stripOuterWhitespace(deviceForm.serial_number).toLowerCase()
+    if (!serial) return null
+
+    return (
+      devices.find(
+        (device) =>
+          device.id !== editingId &&
+          stripOuterWhitespace(device.serial_number).toLowerCase() === serial,
+      ) ?? null
+    )
+  }, [deviceForm.serial_number, devices, editingId])
+
   const totals = useMemo(
     () => ({
       all: devices.length,
@@ -1118,6 +1288,17 @@ function App() {
     }),
     [devices],
   )
+
+  const statistics = useMemo(() => {
+    const repairDetails = devices.map((device) => formToRepairDetails(deviceToForm(device)))
+
+    return {
+      brands: getCountItems(repairDetails.map((details) => details.brand)),
+      technicians: getCountItems(repairDetails.map((details) => details.technician)),
+      faults: getCountItems(repairDetails.map((details) => details.fault)),
+      finalResults: getCountItems(repairDetails.map((details) => details.final_result)),
+    }
+  }, [devices])
 
   const checkEmailRegistered = useCallback(async (email: string) => {
     if (!email) return false
@@ -1334,6 +1515,10 @@ function App() {
         throw new Error(t.fillRequiredDevice)
       }
 
+      if (duplicateSerialDevice) {
+        throw new Error(t.duplicateSerialFound(payload.serial_number))
+      }
+
       if (isDemoMode) {
         const now = new Date().toISOString()
 
@@ -1383,9 +1568,12 @@ function App() {
 
         if (error) throw error
 
+        const updatedDevice = data as Device
         setDevices((currentDevices) =>
-          currentDevices.map((device) => (device.id === editingId ? (data as Device) : device)),
+          currentDevices.map((device) => (device.id === editingId ? updatedDevice : device)),
         )
+        await recordDeviceHistory(updatedDevice, 'update', t.deviceUpdated)
+        await loadDeviceExtras(updatedDevice.id)
         setNotice(t.deviceUpdated)
       } else {
         const { data, error } = await supabase
@@ -1399,7 +1587,9 @@ function App() {
 
         if (error) throw error
 
-        setDevices((currentDevices) => [data as Device, ...currentDevices])
+        const createdDevice = data as Device
+        setDevices((currentDevices) => [createdDevice, ...currentDevices])
+        await recordDeviceHistory(createdDevice, 'create', t.deviceAdded)
         setNotice(t.deviceAdded)
       }
 
@@ -1415,12 +1605,15 @@ function App() {
   const startEditing = (device: Device) => {
     setEditingId(device.id)
     setDeviceForm(deviceToForm(device))
+    void loadDeviceExtras(device.id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const cancelEditing = () => {
     setEditingId(null)
     setDeviceForm(emptyDeviceForm)
+    setHistoryEntries([])
+    setAttachments([])
   }
 
   const deleteDevice = async (device: Device) => {
@@ -1454,6 +1647,7 @@ function App() {
       return
     }
 
+    await recordDeviceHistory(device, 'delete', t.deviceDeleted)
     setDevices((currentDevices) => currentDevices.filter((item) => item.id !== device.id))
 
     if (editingId === device.id) {
@@ -1681,6 +1875,7 @@ function App() {
           }
 
           const importedBySerial = new Map<string, DeviceForm>()
+          const importedSerials = new Set<string>()
 
           results.data.forEach((row, index) => {
             const importedDevice = csvRowToDeviceForm(row)
@@ -1696,6 +1891,12 @@ function App() {
               throw new Error(t.csvLineRequired(index + 2))
             }
 
+            const serialKey = stripOuterWhitespace(importedDevice.serial_number).toLowerCase()
+            if (importedSerials.has(serialKey)) {
+              throw new Error(t.duplicateSerialInCsv(importedDevice.serial_number))
+            }
+
+            importedSerials.add(serialKey)
             importedBySerial.set(importedDevice.serial_number, importedDevice)
           })
 
@@ -1741,7 +1942,7 @@ function App() {
 
           if (!supabase || !session) return
 
-          const { error } = await supabase.from('devices').upsert(
+          const { data, error } = await supabase.from('devices').upsert(
             importedDevices.map((device) => ({
               name: device.name,
               serial_number: device.serial_number,
@@ -1753,9 +1954,15 @@ function App() {
               updated_by: session.user.id,
             })),
             { onConflict: 'serial_number' },
-          )
+          ).select()
 
           if (error) throw error
+
+          await Promise.all(
+            ((data as Device[] | null) ?? []).map((device) =>
+              recordDeviceHistory(device, 'import', t.csvImportedUpdated(1)),
+            ),
+          )
 
           await loadDevices()
           setNotice(t.csvImportedUpdated(importedDevices.length))
@@ -1770,6 +1977,144 @@ function App() {
         setIsImporting(false)
       },
     })
+  }
+
+  const uploadAttachment = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file || !editingId || !supabase || !session) return
+
+    const currentDevice = devices.find((device) => device.id === editingId)
+    if (!currentDevice) return
+
+    setIsUploadingAttachment(true)
+    setAuthError(null)
+    setNotice(null)
+
+    try {
+      const safeFileName = file.name.replace(/[^\w.\-() ]/g, '_')
+      const filePath = `${editingId}/${Date.now()}-${safeFileName}`
+      const { error: uploadError } = await supabase.storage
+        .from('device-attachments')
+        .upload(filePath, file, { upsert: false })
+
+      if (uploadError) throw uploadError
+
+      const { data, error } = await supabase
+        .from('device_attachments')
+        .insert({
+          device_id: editingId,
+          file_name: file.name,
+          file_path: filePath,
+          file_type: file.type || null,
+          file_size: file.size,
+          uploaded_by: session.user.id,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setAttachments((currentAttachments) => [data as DeviceAttachment, ...currentAttachments])
+      await recordDeviceHistory(currentDevice, 'attachment', `${t.addAttachment}: ${file.name}`)
+      await loadDeviceExtras(editingId)
+      setNotice(t.attachmentUploaded)
+    } catch (error) {
+      setAuthError(getFriendlyDataError(error, language) || t.storageSetupRequired)
+    } finally {
+      setIsUploadingAttachment(false)
+    }
+  }
+
+  const openAttachment = async (attachment: DeviceAttachment) => {
+    if (!supabase) return
+
+    const { data, error } = await supabase.storage
+      .from('device-attachments')
+      .createSignedUrl(attachment.file_path, 60 * 10)
+
+    if (error || !data?.signedUrl) {
+      setAuthError(error?.message ?? t.storageSetupRequired)
+      return
+    }
+
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const deleteAttachment = async (attachment: DeviceAttachment) => {
+    if (!supabase) return
+
+    setAuthError(null)
+    setNotice(null)
+
+    const { error: storageError } = await supabase.storage
+      .from('device-attachments')
+      .remove([attachment.file_path])
+
+    if (storageError) {
+      setAuthError(storageError.message)
+      return
+    }
+
+    const { error } = await supabase.from('device_attachments').delete().eq('id', attachment.id)
+
+    if (error) {
+      setAuthError(error.message)
+      return
+    }
+
+    setAttachments((currentAttachments) =>
+      currentAttachments.filter((item) => item.id !== attachment.id),
+    )
+    setNotice(t.attachmentDeleted)
+  }
+
+  const printDevicesReport = () => {
+    if (filteredDevices.length === 0) {
+      setNotice(t.noExportVisible)
+      return
+    }
+
+    const reportWindow = window.open('', '_blank', 'noopener,noreferrer')
+    if (!reportWindow) return
+
+    const generatedAt = new Intl.DateTimeFormat(language === 'pt' ? 'pt-PT' : 'en-GB', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date())
+    const rows = filteredDevices
+      .map((device) => {
+        const details = formToRepairDetails(deviceToForm(device))
+        return `<tr><td>${escapeHtml(device.name)}</td><td>${escapeHtml(details.brand)}</td><td>${escapeHtml(device.model)}</td><td>${escapeHtml(device.serial_number)}</td><td>${escapeHtml(details.cpu)}</td><td>${escapeHtml(details.repair_status)}</td><td>${escapeHtml(details.fault)}</td></tr>`
+      })
+      .join('')
+
+    reportWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>${escapeHtml(t.printReport)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 28px; color: #162b3a; }
+            h1 { margin: 0 0 6px; font-size: 22px; }
+            p { margin: 0 0 18px; color: #5b6f7e; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            th, td { border: 1px solid #cfdde5; padding: 7px; text-align: left; vertical-align: top; }
+            th { background: #eef7f8; }
+          </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(t.appTitle)}</h1>
+          <p>${escapeHtml(t.printReport)} - ${escapeHtml(generatedAt)} - ${filteredDevices.length} ${escapeHtml(t.visibleRecords)}</p>
+          <table>
+            <thead><tr><th>ID</th><th>${escapeHtml(translateRepairLabel('Marca'))}</th><th>${escapeHtml(translateRepairLabel('Modelo'))}</th><th>${escapeHtml(translateRepairLabel('Nº Série'))}</th><th>CPU</th><th>${escapeHtml(translateRepairLabel('Estado'))}</th><th>${escapeHtml(translateRepairLabel('Avaria'))}</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+      </html>`)
+    reportWindow.document.close()
+    reportWindow.focus()
+    reportWindow.print()
   }
 
   const updateRepairField = (key: RepairColumnKey, value: string) => {
@@ -2058,6 +2403,14 @@ function App() {
           </button>
           <button
             type="button"
+            className={selectedView === 'stats' ? 'active' : ''}
+            onClick={() => setActiveView('stats')}
+          >
+            <BarChart3 aria-hidden="true" />
+            {t.statistics}
+          </button>
+          <button
+            type="button"
             className={selectedView === 'users' ? 'active' : ''}
             onClick={() => {
               setActiveView('users')
@@ -2169,6 +2522,12 @@ function App() {
                         }))
                       }
                     />
+                    {duplicateSerialDevice && (
+                      <span className="field-warning">
+                        <CircleAlert aria-hidden="true" />
+                        {t.duplicateSerialFound(deviceForm.serial_number)}
+                      </span>
+                    )}
                   </label>
                 </div>
               </div>
@@ -2198,7 +2557,92 @@ function App() {
                 </div>
               ))}
 
-              <button className="primary-action span-2" type="submit" disabled={isSaving}>
+              {editingId && (
+                <div className="device-extras span-2">
+                  <section className="extra-panel">
+                    <div className="extra-heading">
+                      <Paperclip aria-hidden="true" />
+                      <h3>{t.attachments}</h3>
+                    </div>
+                    <input
+                      ref={attachmentInputRef}
+                      className="import-file-input"
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                      onChange={uploadAttachment}
+                    />
+                    <button
+                      type="button"
+                      className="ghost-action"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      disabled={isUploadingAttachment || isDemoMode}
+                    >
+                      {isUploadingAttachment ? (
+                        <Loader2 className="spin" aria-hidden="true" />
+                      ) : (
+                        <Paperclip aria-hidden="true" />
+                      )}
+                      {t.addAttachment}
+                    </button>
+                    {attachments.length === 0 ? (
+                      <p className="muted-note">{isDemoMode ? t.storageSetupRequired : t.noAttachments}</p>
+                    ) : (
+                      <div className="attachment-list">
+                        {attachments.map((attachment) => (
+                          <article className="attachment-item" key={attachment.id}>
+                            <div>
+                              <strong>{attachment.file_name}</strong>
+                              <span>{formatFileSize(attachment.file_size)}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              onClick={() => void openAttachment(attachment)}
+                              title={attachment.file_name}
+                            >
+                              <ExternalLink aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button danger"
+                              onClick={() => void deleteAttachment(attachment)}
+                              title={t.delete}
+                            >
+                              <Trash2 aria-hidden="true" />
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                  <section className="extra-panel">
+                    <div className="extra-heading">
+                      <History aria-hidden="true" />
+                      <h3>{t.history}</h3>
+                    </div>
+                    {isLoadingDeviceExtras ? (
+                      <p className="muted-note">{t.loading}</p>
+                    ) : historyEntries.length === 0 ? (
+                      <p className="muted-note">{isDemoMode ? t.storageSetupRequired : t.noHistory}</p>
+                    ) : (
+                      <ol className="history-list">
+                        {historyEntries.map((entry) => (
+                          <li key={entry.id}>
+                            <strong>{entry.summary ?? entry.action}</strong>
+                            <span>{formatProfileDate(entry.created_at, language)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </section>
+                </div>
+              )}
+
+              <button
+                className="primary-action span-2"
+                type="submit"
+                disabled={isSaving || Boolean(duplicateSerialDevice)}
+              >
                 {isSaving ? (
                   <Loader2 className="spin" aria-hidden="true" />
                 ) : editingId ? (
@@ -2236,6 +2680,10 @@ function App() {
               <button type="button" className="ghost-action" onClick={exportDevicesCsv}>
                 <Download aria-hidden="true" />
                 {t.exportCsv}
+              </button>
+              <button type="button" className="ghost-action" onClick={printDevicesReport}>
+                <Printer aria-hidden="true" />
+                {t.printReport}
               </button>
               {canManageDevices && (
                 <button
@@ -2454,6 +2902,65 @@ function App() {
         </section>
       </div>
         </>
+      ) : selectedView === 'stats' ? (
+        <section className="stats-page" aria-labelledby="stats-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="stats-title">{t.statistics}</h2>
+              <p>
+                {devices.length} {t.visibleRecords}
+              </p>
+            </div>
+            <button type="button" className="ghost-action" onClick={printDevicesReport}>
+              <FileText aria-hidden="true" />
+              {t.printReport}
+            </button>
+          </div>
+
+          <section className="stats-grid" aria-label={t.devicesSummary}>
+            <article>
+              <span>{t.total}</span>
+              <strong>{totals.all}</strong>
+            </article>
+            <article>
+              <span>{localizedStatusLabels.active}</span>
+              <strong>{totals.active}</strong>
+            </article>
+            <article>
+              <span>{t.maintenance}</span>
+              <strong>{totals.maintenance}</strong>
+            </article>
+            <article>
+              <span>{t.archived}</span>
+              <strong>{totals.retired}</strong>
+            </article>
+          </section>
+
+          <div className="analytics-grid">
+            {[
+              { title: t.mostCommonBrands, items: statistics.brands },
+              { title: translateRepairLabel('Técnico'), items: statistics.technicians },
+              { title: translateRepairLabel('Avaria'), items: statistics.faults },
+              { title: t.finalResults, items: statistics.finalResults },
+            ].map((panel) => (
+              <article className="analytics-panel" key={panel.title}>
+                <h3>{panel.title}</h3>
+                {panel.items.length === 0 ? (
+                  <p className="muted-note">N/A</p>
+                ) : (
+                  <div className="analytics-list">
+                    {panel.items.map((item) => (
+                      <div className="analytics-row" key={item.label}>
+                        <span>{item.label}</span>
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
       ) : (
         <section className="users-panel" aria-labelledby="users-title">
           <div className="section-heading">

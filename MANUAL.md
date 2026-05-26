@@ -22,6 +22,8 @@
 2. Altera os campos necessarios.
 3. Clica em `Guardar alterações`.
 4. Para deixar desativo, escreve `Arquivado` ou `Abate` no campo `Estado`.
+5. Ao editar um dispositivo, usa `Anexar foto/fatura` para guardar fotografias, PDFs ou faturas.
+6. O painel `Historico` mostra as principais alteracoes desse dispositivo.
 
 ## 4. Importar do Google Sheets
 
@@ -36,15 +38,22 @@
 2. Abre ou importa o ficheiro no Google Sheets.
 3. Se usares pesquisa ou filtro antes de exportar, so os registos visiveis sao exportados.
 4. Usa `Ordenar por` e `Direcao` para exportar na ordem crescente ou decrescente que estiver visivel.
+5. Usa `Imprimir relatorio` para gerar um relatorio imprimivel dos registos visiveis.
 
-## 6. Apagar registos
+## 6. Ver estatisticas
+
+1. Abre a aba `Estatisticas`.
+2. Consulta totais por estado, marcas mais comuns, tecnicos, avarias e resultados finais.
+3. Tambem podes imprimir um relatorio a partir desta pagina.
+
+## 7. Apagar registos
 
 1. Para apagar uma linha, usa o icone vermelho de lixo nessa linha.
 2. Para apagar tudo, usa `Apagar tudo`.
 3. O sistema pede confirmacao e exige escrever `APAGAR`.
 4. Depois de apagar tudo, nao ha recuperacao automatica. Exporta CSV antes se precisares de copia.
 
-## 7. Gerir utilizadores
+## 8. Gerir utilizadores
 
 1. Entra com uma conta confirmada.
 2. Abre a aba `Utilizadores`.
@@ -53,3 +62,9 @@
 5. A conta nova fica automaticamente como `Administrador`.
 6. Na tabela de utilizadores, podes mudar a permissao mais tarde.
 7. A tua propria permissao fica bloqueada para evitares perder acesso ao painel.
+
+## 9. Ativar anexos e historico no Supabase
+
+1. Abre o SQL Editor no Supabase.
+2. Executa o ficheiro `supabase/feature-upgrades.sql`.
+3. Volta ao site, faz `Ctrl + F5` e edita um dispositivo para usar anexos e historico.

@@ -25,6 +25,28 @@ export type Device = {
   updated_at: string
 }
 
+export type DeviceHistoryEntry = {
+  id: string
+  device_id: string | null
+  device_name: string | null
+  serial_number: string | null
+  action: string
+  summary: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type DeviceAttachment = {
+  id: string
+  device_id: string
+  file_name: string
+  file_path: string
+  file_type: string | null
+  file_size: number | null
+  uploaded_by: string | null
+  created_at: string
+}
+
 export type RepairDetails = {
   entry_date: string
   brand: string

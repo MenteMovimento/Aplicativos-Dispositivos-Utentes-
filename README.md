@@ -10,6 +10,10 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 - Idiomas da interface: Portugues (Portugal) e Ingles.
 - Listagem, pesquisa, filtro por estado e ordenacao crescente/decrescente por coluna.
 - Criacao, edicao e remocao de dispositivos.
+- Relatorio imprimivel dos dispositivos visiveis.
+- Pagina de estatisticas com totais, marcas, tecnicos, avarias e resultados finais.
+- Historico e anexos por dispositivo atraves do Supabase Storage.
+- Aviso visivel para numeros de serie duplicados.
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
 - Importacao e exportacao CSV compativel com Google Sheets.
 - Contas autenticadas conseguem gerir dispositivos.
@@ -51,6 +55,8 @@ Todas as contas novas ficam automaticamente com perfil `admin`.
 Se usares confirmacao por email no Supabase Auth, o site mostra um botao `Reenviar confirmacao` com cooldown para evitar o erro `email rate limit exceeded`. Para testes em aula, podes desativar a confirmacao de email em `Authentication > Providers > Email`; para producao, o ideal e configurar SMTP proprio.
 
 Para corrigir contas antigas e permissões/RLS num projeto ja existente, executa o conteudo de `supabase/user-management.sql` no SQL Editor. Esse ficheiro coloca os perfis existentes como `admin`, permite que contas autenticadas usem dispositivos e prepara a area de utilizadores.
+
+Para ativar historico e anexos, executa tambem `supabase/feature-upgrades.sql` no SQL Editor. Esse ficheiro cria as tabelas `device_history`, `device_attachments` e o bucket privado `device-attachments`.
 
 Para promover uma conta para gestor manualmente, executa no SQL Editor:
 
