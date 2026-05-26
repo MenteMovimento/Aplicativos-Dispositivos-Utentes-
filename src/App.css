@@ -3,10 +3,15 @@
   --surface: #ffffff;
   --surface-soft: #f8fbfc;
   --surface-strong: #eef7f8;
+  --surface-elevated: #ffffff;
   --text: #172c3b;
   --muted: #607383;
   --border: #d7e4ea;
   --border-strong: #b9d0da;
+  --input-bg: #ffffff;
+  --row-alt: #fbfdfe;
+  --row-hover: #effbfb;
+  --table-header: #f2f7fa;
   --brand-blue: #004d95;
   --brand-blue-strong: #00376c;
   --brand-cyan: #17c9c3;
@@ -22,11 +27,15 @@
   --success-soft: #e4f6ee;
   --label: #415868;
   --table-heading: #50687a;
+  --focus-ring: rgba(23, 201, 195, 0.22);
+  --sticky-shadow-left: 8px 0 14px rgba(16, 43, 61, 0.08);
+  --sticky-shadow-right: -8px 0 14px rgba(16, 43, 61, 0.08);
   --auth-bg:
     linear-gradient(180deg, #ffffff 0%, #f4f8fb 58%),
     var(--bg);
   --shadow: 0 18px 45px rgba(16, 43, 61, 0.1);
   --shadow-soft: 0 8px 24px rgba(16, 43, 61, 0.07);
+  --shadow-crisp: 0 1px 2px rgba(16, 43, 61, 0.08);
   color: var(--text);
   background: var(--bg);
   color-scheme: light;
@@ -37,10 +46,15 @@
   --surface: #132026;
   --surface-soft: #17272f;
   --surface-strong: #1e333b;
+  --surface-elevated: #182832;
   --text: #edf7f8;
   --muted: #9eb3bd;
   --border: #2c444e;
   --border-strong: #3b5b66;
+  --input-bg: #0f1c22;
+  --row-alt: #14232a;
+  --row-hover: rgba(49, 215, 208, 0.1);
+  --table-header: #192b33;
   --brand-blue: #58a9ff;
   --brand-blue-strong: #9dccff;
   --brand-cyan: #31d7d0;
@@ -56,11 +70,15 @@
   --success-soft: rgba(112, 228, 175, 0.14);
   --label: #bdd0d8;
   --table-heading: #bdd0d8;
+  --focus-ring: rgba(49, 215, 208, 0.24);
+  --sticky-shadow-left: 8px 0 18px rgba(0, 0, 0, 0.26);
+  --sticky-shadow-right: -8px 0 18px rgba(0, 0, 0, 0.26);
   --auth-bg:
     linear-gradient(180deg, #0f1c22 0%, #0c1418 58%),
     var(--bg);
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.34);
   --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.26);
+  --shadow-crisp: 0 1px 2px rgba(0, 0, 0, 0.32);
   color-scheme: dark;
 }
 
@@ -73,6 +91,16 @@ body {
   min-width: 320px;
   color: var(--text);
   background: var(--bg);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 button,
@@ -84,6 +112,14 @@ textarea {
 
 button {
   cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -134,7 +170,7 @@ pre {
 .users-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--surface-elevated);
   box-shadow: var(--shadow-soft);
 }
 
@@ -168,7 +204,8 @@ pre {
 
 .auth-panel {
   width: min(470px, 100%);
-  padding: 30px;
+  padding: 28px;
+  box-shadow: var(--shadow);
 }
 
 .auth-toolbar {
@@ -179,7 +216,8 @@ pre {
 
 .auth-logo {
   display: flex;
-  margin-bottom: 24px;
+  justify-content: center;
+  margin-bottom: 22px;
 }
 
 .auth-logo .brand-image {
@@ -204,6 +242,7 @@ pre {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
 .mode-tabs button {
@@ -218,7 +257,7 @@ pre {
 .mode-tabs button.active {
   color: var(--brand-blue);
   background: var(--surface);
-  box-shadow: 0 1px 5px rgba(16, 43, 61, 0.12);
+  box-shadow: var(--shadow-crisp);
 }
 
 .stack-form,
@@ -248,7 +287,7 @@ textarea {
   border-radius: 7px;
   padding: 10px 12px;
   color: var(--text);
-  background: var(--surface);
+  background: var(--input-bg);
   outline: none;
   transition:
     border-color 0.2s ease,
@@ -265,7 +304,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--brand-cyan);
-  box-shadow: 0 0 0 3px rgba(23, 201, 195, 0.18);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .primary-action,
@@ -284,6 +323,7 @@ textarea:focus {
     border-color 0.2s ease,
     color 0.2s ease,
     background 0.2s ease,
+    box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
@@ -292,11 +332,21 @@ textarea:focus {
   padding: 0 16px;
   color: #ffffff;
   background: var(--brand-blue);
+  box-shadow: 0 8px 18px rgba(0, 77, 149, 0.18);
 }
 
 .primary-action:hover {
   background: var(--brand-blue-strong);
+  box-shadow: 0 10px 22px rgba(0, 77, 149, 0.22);
   transform: translateY(-1px);
+}
+
+.primary-action:active,
+.ghost-action:active,
+.danger-action:active,
+.manual-button:active,
+.icon-button:active {
+  transform: translateY(0);
 }
 
 .primary-action svg,
@@ -310,10 +360,12 @@ textarea:focus {
   padding: 0 12px;
   color: var(--brand-blue);
   background: var(--brand-cyan-soft);
+  border-color: transparent;
 }
 
 .ghost-action:hover {
   border-color: var(--brand-cyan);
+  box-shadow: var(--shadow-crisp);
 }
 
 .manual-button {
@@ -333,6 +385,7 @@ textarea:focus {
 .manual-button:hover {
   border-color: var(--brand-cyan);
   background: var(--brand-cyan-soft);
+  box-shadow: var(--shadow-crisp);
 }
 
 .danger-action {
@@ -395,6 +448,16 @@ textarea:focus {
   padding: 0 8px;
   color: var(--brand-blue);
   background: var(--surface);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.language-control:hover {
+  border-color: var(--brand-cyan);
+  background: var(--brand-cyan-soft);
+  box-shadow: var(--shadow-crisp);
 }
 
 .language-control svg {
@@ -446,6 +509,7 @@ textarea:focus {
   border-radius: 7px;
   font-size: 0.92rem;
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .stack-form .feedback,
@@ -455,11 +519,13 @@ textarea:focus {
 
 .feedback.error {
   color: var(--danger-strong);
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
   background: var(--danger-soft);
 }
 
 .feedback.success {
   color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 28%, transparent);
   background: var(--success-soft);
 }
 
@@ -500,17 +566,22 @@ textarea:focus {
 }
 
 .app-shell {
-  width: min(1440px, 100%);
+  width: min(1500px, 100%);
   margin: 0 auto;
-  padding: 22px 24px 28px;
+  padding: 18px 24px 32px;
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 16px 0 22px;
+  padding: 14px 0 18px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(14px);
 }
 
 .brand-heading {
@@ -533,12 +604,12 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 8px 8px 12px;
+  padding: 7px 7px 7px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--muted);
-  background: var(--surface);
-  box-shadow: 0 1px 3px rgba(16, 43, 61, 0.05);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-crisp);
 }
 
 .account-box > span:not(.role-badge) {
@@ -586,6 +657,7 @@ textarea:focus {
   font-size: 0.78rem;
   font-weight: 850;
   white-space: nowrap;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .role-badge {
@@ -615,8 +687,8 @@ textarea:focus {
   margin-bottom: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 1px 3px rgba(16, 43, 61, 0.05);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-crisp);
 }
 
 .view-tabs button {
@@ -636,6 +708,7 @@ textarea:focus {
 .view-tabs button.active {
   color: var(--brand-blue);
   background: var(--brand-cyan-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-cyan) 34%, transparent);
 }
 
 .view-tabs svg {
@@ -657,8 +730,24 @@ textarea:focus {
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--surface-elevated);
   box-shadow: var(--shadow-soft);
+}
+
+.stats-grid article:first-child {
+  border-top: 3px solid var(--brand-blue);
+}
+
+.stats-grid article:nth-child(2) {
+  border-top: 3px solid var(--success);
+}
+
+.stats-grid article:nth-child(3) {
+  border-top: 3px solid var(--warning);
+}
+
+.stats-grid article:nth-child(4) {
+  border-top: 3px solid var(--muted);
 }
 
 .stats-grid span {
@@ -674,7 +763,7 @@ textarea:focus {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(330px, 430px) minmax(0, 1fr);
+  grid-template-columns: minmax(340px, 430px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -682,12 +771,14 @@ textarea:focus {
 .form-panel,
 .list-panel,
 .users-panel {
-  padding: 20px;
+  padding: 18px;
 }
 
 .form-panel {
   position: sticky;
-  top: 18px;
+  top: 88px;
+  max-height: calc(100svh - 108px);
+  overflow: auto;
 }
 
 .section-heading {
@@ -695,7 +786,7 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .section-heading h2 {
@@ -715,6 +806,7 @@ textarea:focus {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
 }
 
 .list-actions .ghost-action,
@@ -739,6 +831,7 @@ textarea:focus {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 68%, transparent);
 }
 
 .form-section h3 {
@@ -786,16 +879,22 @@ textarea:focus {
     minmax(170px, 220px);
   gap: 12px;
   margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
 }
 
 .search-field {
   position: relative;
+  align-self: end;
 }
 
 .search-field svg {
   position: absolute;
   left: 12px;
-  bottom: 13px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 18px;
   height: 18px;
   color: var(--muted);
@@ -808,6 +907,7 @@ textarea:focus {
 .filter-control {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .filter-control span {
@@ -821,7 +921,24 @@ textarea:focus {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-crisp);
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.table-wrap::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--border-strong);
 }
 
 table {
@@ -842,7 +959,7 @@ table {
 th,
 td {
   overflow: hidden;
-  padding: 13px 12px;
+  padding: 12px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   text-overflow: ellipsis;
@@ -857,8 +974,8 @@ td {
   z-index: 2;
   overflow: visible;
   text-overflow: clip;
-  background: var(--surface);
-  box-shadow: -8px 0 14px rgba(16, 43, 61, 0.08);
+  background: var(--surface-elevated);
+  box-shadow: var(--sticky-shadow-right);
 }
 
 .repair-table th:first-child,
@@ -866,8 +983,8 @@ td {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: var(--surface);
-  box-shadow: 8px 0 14px rgba(16, 43, 61, 0.08);
+  background: var(--surface-elevated);
+  box-shadow: var(--sticky-shadow-left);
 }
 
 th {
@@ -875,7 +992,7 @@ th {
   font-size: 0.78rem;
   font-weight: 850;
   text-transform: uppercase;
-  background: var(--surface-soft);
+  background: var(--table-header);
 }
 
 .repair-table th {
@@ -924,7 +1041,7 @@ th {
 .repair-table th:first-child,
 .repair-table.has-actions th:last-child {
   z-index: 3;
-  background: var(--surface-soft);
+  background: var(--table-header);
 }
 
 td {
@@ -937,11 +1054,19 @@ td {
 }
 
 tbody tr:hover {
-  background: var(--brand-cyan-pale);
+  background: var(--row-hover);
 }
 
 tbody tr:hover td {
-  background: var(--brand-cyan-pale);
+  background: var(--row-hover);
+}
+
+tbody tr:nth-child(even) td {
+  background: var(--row-alt);
+}
+
+tbody tr:nth-child(even):hover td {
+  background: var(--row-hover);
 }
 
 tbody tr:last-child td {
@@ -970,6 +1095,11 @@ tbody tr:last-child td {
   min-width: 88px;
 }
 
+.row-actions .icon-button {
+  width: 36px;
+  height: 36px;
+}
+
 .users-note {
   display: flex;
   align-items: flex-start;
@@ -980,6 +1110,7 @@ tbody tr:last-child td {
   border-radius: 8px;
   color: var(--muted);
   background: var(--surface-soft);
+  box-shadow: inset 3px 0 0 var(--brand-cyan);
 }
 
 .users-note svg {
@@ -1003,6 +1134,7 @@ tbody tr:last-child td {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 68%, transparent);
 }
 
 .user-create-heading {
