@@ -386,7 +386,8 @@ const manualSectionsByLanguage: Record<
         'Preenche nome, email e palavra-passe temporaria no formulario Criar utilizador.',
         'Todas as contas criadas nesta area entram automaticamente como Administrador.',
         'Na tabela, podes alterar a permissao para Administrador, Gestor ou Membro depois da criacao.',
-        'A tua propria permissao fica bloqueada para evitar perderes acesso ao painel.',
+        'Usa o lapis para alterar o nome e o lixo vermelho para eliminar contas que ja nao devem aceder.',
+        'A tua propria permissao e a eliminacao da tua conta ficam bloqueadas para evitar perderes acesso ao painel.',
       ],
     },
     {
@@ -458,7 +459,8 @@ const manualSectionsByLanguage: Record<
         'Fill name, email and temporary password in the Create user form.',
         'All accounts created in this area are automatically Administrators.',
         'In the table, you can later change the permission to Administrator, Manager or Member.',
-        'Your own permission is locked to avoid losing access to the panel.',
+        'Use the pencil to change the name and the red trash button to delete accounts that should no longer sign in.',
+        'Your own permission and account deletion are locked to avoid losing access to the panel.',
       ],
     },
     {
@@ -504,6 +506,7 @@ const translations = {
     displaySettings: 'Preferencias de visualizacao',
     edit: 'Editar',
     editDevice: 'Editar dispositivo',
+    editName: 'Editar nome',
     email: 'Email',
     exportCsv: 'Exportar CSV',
     finalResults: 'Resultados finais',
@@ -584,14 +587,20 @@ const translations = {
     fillRequiredDevice: 'Preenche o nome, numero de serie e modelo.',
     fillUser: 'Preenche nome, email e palavra-passe.',
     noDevicesToDelete: 'Nao ha dispositivos para apagar.',
+    noProfileChanges: 'Nao ha alteracoes para guardar.',
     noExportVisible: 'Nao ha dispositivos visiveis para exportar.',
+    ownDeleteBlocked: 'Nao podes eliminar a tua propria conta.',
     ownRoleBlocked: 'Nao podes alterar a permissao da tua propria conta.',
     passwordMin: 'A palavra-passe deve ter pelo menos 6 caracteres.',
     saveFailed: 'Nao foi possivel guardar.',
     sessionActive: 'Sessao ja ativa. Entraste diretamente no painel.',
     userCreated: 'Utilizador criado com a permissao definida.',
     userCreatedDemo: 'Utilizador criado em modo demonstracao.',
+    userDeleted: 'Utilizador eliminado.',
+    userDeletedDemo: 'Utilizador eliminado em modo demonstracao.',
     userExists: 'Ja existe um utilizador com esse email.',
+    userNameUpdated: 'Nome do utilizador atualizado.',
+    userNameUpdatedDemo: 'Nome do utilizador atualizado em modo demonstracao.',
     attachmentDeleted: 'Anexo apagado.',
     attachmentUploaded: 'Anexo guardado.',
     resendIn: (seconds: number) => `Reenviar em ${seconds}s`,
@@ -605,6 +614,8 @@ const translations = {
     deleteAllConfirm: (count: number) =>
       `Vais apagar TODOS os ${count} dispositivos. Esta acao nao pode ser desfeita. Continuar?`,
     deleteOne: (name: string) => `Apagar "${name}"?`,
+    deleteUserConfirm: (name: string) =>
+      `Vais eliminar o utilizador "${name}" e o acesso dele ao site. Continuar?`,
     recentConfirmation: (seconds: number) =>
       `Ja foi enviado um email de confirmacao recentemente. Aguarda ${seconds} segundos antes de tentar novamente.`,
     roleUpdated: (name: string) => `Permissao de ${name} atualizada.`,
@@ -642,6 +653,7 @@ const translations = {
     displaySettings: 'Display preferences',
     edit: 'Edit',
     editDevice: 'Edit device',
+    editName: 'Edit name',
     email: 'Email',
     exportCsv: 'Export CSV',
     finalResults: 'Final results',
@@ -722,14 +734,20 @@ const translations = {
     fillRequiredDevice: 'Fill name, serial number and model.',
     fillUser: 'Fill name, email and password.',
     noDevicesToDelete: 'There are no devices to delete.',
+    noProfileChanges: 'There are no changes to save.',
     noExportVisible: 'There are no visible devices to export.',
+    ownDeleteBlocked: 'You cannot delete your own account.',
     ownRoleBlocked: 'You cannot change your own account permission.',
     passwordMin: 'Password must be at least 6 characters.',
     saveFailed: 'Could not save.',
     sessionActive: 'Session already active. You went straight to the dashboard.',
     userCreated: 'User created with the defined permission.',
     userCreatedDemo: 'User created in demo mode.',
+    userDeleted: 'User deleted.',
+    userDeletedDemo: 'User deleted in demo mode.',
     userExists: 'A user with that email already exists.',
+    userNameUpdated: 'User name updated.',
+    userNameUpdatedDemo: 'User name updated in demo mode.',
     attachmentDeleted: 'Attachment deleted.',
     attachmentUploaded: 'Attachment saved.',
     resendIn: (seconds: number) => `Resend in ${seconds}s`,
@@ -743,6 +761,8 @@ const translations = {
     deleteAllConfirm: (count: number) =>
       `You are about to delete ALL ${count} devices. This action cannot be undone. Continue?`,
     deleteOne: (name: string) => `Delete "${name}"?`,
+    deleteUserConfirm: (name: string) =>
+      `You are about to delete user "${name}" and remove their site access. Continue?`,
     recentConfirmation: (seconds: number) =>
       `A confirmation email was sent recently. Wait ${seconds} seconds before trying again.`,
     roleUpdated: (name: string) => `${name}'s permission was updated.`,
@@ -932,6 +952,9 @@ function App() {
   const [isCreatingUser, setIsCreatingUser] = useState(false)
   const [isResendingConfirmation, setIsResendingConfirmation] = useState(false)
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null)
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null)
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [editingProfileName, setEditingProfileName] = useState('')
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [authLoading, setAuthLoading] = useState(false)
   const [authClock, setAuthClock] = useState(() => Date.now())
@@ -1831,6 +1854,145 @@ function App() {
       setAuthError(getFriendlyDataError(error, language))
     } finally {
       setSavingProfileId(null)
+    }
+  }
+
+  const startEditingProfileName = (targetProfile: Profile) => {
+    setEditingProfileId(targetProfile.id)
+    setEditingProfileName(targetProfile.full_name ?? '')
+    setAuthError(null)
+    setNotice(null)
+  }
+
+  const cancelEditingProfileName = () => {
+    setEditingProfileId(null)
+    setEditingProfileName('')
+  }
+
+  const updateProfileName = async (targetProfile: Profile) => {
+    if (!canManageUsers || editingProfileId !== targetProfile.id) return
+
+    const nextName = stripOuterWhitespace(editingProfileName)
+    const currentName = stripOuterWhitespace(targetProfile.full_name ?? '')
+
+    if (!nextName) {
+      setAuthError(t.fillUser)
+      return
+    }
+
+    if (nextName === currentName) {
+      cancelEditingProfileName()
+      setNotice(t.noProfileChanges)
+      return
+    }
+
+    setSavingProfileId(targetProfile.id)
+    setAuthError(null)
+    setNotice(null)
+
+    try {
+      if (isDemoMode) {
+        const updatedAt = new Date().toISOString()
+        const nextProfiles = profiles.map((item) =>
+          item.id === targetProfile.id ? { ...item, full_name: nextName, updated_at: updatedAt } : item,
+        )
+
+        setProfiles(nextProfiles)
+        persistDemoProfiles(nextProfiles)
+        cancelEditingProfileName()
+        setNotice(t.userNameUpdatedDemo)
+        return
+      }
+
+      if (!session) return
+
+      const response = await fetch('/api/admin-users', {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profileId: targetProfile.id,
+          fullName: nextName,
+        }),
+      })
+      const result = (await response.json()) as { error?: string; profile?: Profile }
+
+      if (!response.ok || !result.profile) {
+        throw new Error(result.error ?? 'Nao foi possivel atualizar o nome.')
+      }
+
+      const data = result.profile
+      setProfiles((currentProfiles) =>
+        currentProfiles.map((item) => (item.id === targetProfile.id ? (data as Profile) : item)),
+      )
+
+      if (targetProfile.id === currentProfileId) {
+        setProfile(data)
+      }
+
+      cancelEditingProfileName()
+      setNotice(t.userNameUpdated)
+    } catch (error) {
+      setAuthError(getFriendlyDataError(error, language))
+    } finally {
+      setSavingProfileId(null)
+    }
+  }
+
+  const deleteProfile = async (targetProfile: Profile) => {
+    if (!canManageUsers) return
+
+    if (targetProfile.id === currentProfileId) {
+      setNotice(t.ownDeleteBlocked)
+      return
+    }
+
+    const profileName = getProfileDisplayName(targetProfile, t.noName)
+    const confirmed = window.confirm(t.deleteUserConfirm(profileName))
+
+    if (!confirmed) return
+
+    setDeletingProfileId(targetProfile.id)
+    setAuthError(null)
+    setNotice(null)
+
+    try {
+      if (isDemoMode) {
+        const nextProfiles = profiles.filter((item) => item.id !== targetProfile.id)
+        setProfiles(nextProfiles)
+        persistDemoProfiles(nextProfiles)
+        if (editingProfileId === targetProfile.id) cancelEditingProfileName()
+        setNotice(t.userDeletedDemo)
+        return
+      }
+
+      if (!session) return
+
+      const response = await fetch('/api/admin-users', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profileId: targetProfile.id,
+        }),
+      })
+      const result = (await response.json()) as { error?: string; ok?: boolean }
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error ?? 'Nao foi possivel eliminar o utilizador.')
+      }
+
+      setProfiles((currentProfiles) => currentProfiles.filter((item) => item.id !== targetProfile.id))
+      if (editingProfileId === targetProfile.id) cancelEditingProfileName()
+      setNotice(t.userDeleted)
+    } catch (error) {
+      setAuthError(getFriendlyDataError(error, language))
+    } finally {
+      setDeletingProfileId(null)
     }
   }
 
@@ -3089,17 +3251,80 @@ function App() {
                     <th>{t.updatePermission}</th>
                     <th>{t.created}</th>
                     <th>{t.updated}</th>
+                    <th>{t.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {profiles.map((userProfile) => {
                     const isCurrentProfile = userProfile.id === currentProfileId
+                    const isEditingName = editingProfileId === userProfile.id
+                    const isSavingProfile = savingProfileId === userProfile.id
+                    const isDeletingProfile = deletingProfileId === userProfile.id
+                    const profileDisplayName = getProfileDisplayName(userProfile, t.noName)
 
                     return (
                       <tr key={userProfile.id}>
                         <td>
                           <div className="user-identity">
-                            <strong>{getProfileDisplayName(userProfile, t.noName)}</strong>
+                            {isEditingName ? (
+                              <div className="profile-name-editor">
+                                <input
+                                  value={editingProfileName}
+                                  onChange={(event) => setEditingProfileName(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault()
+                                      void updateProfileName(userProfile)
+                                    }
+
+                                    if (event.key === 'Escape') {
+                                      cancelEditingProfileName()
+                                    }
+                                  }}
+                                  aria-label={t.name}
+                                />
+                                <div className="profile-name-actions">
+                                  <button
+                                    type="button"
+                                    className="icon-button"
+                                    onClick={() => void updateProfileName(userProfile)}
+                                    disabled={isSavingProfile}
+                                    title={t.saveChanges}
+                                    aria-label={t.saveChanges}
+                                  >
+                                    {isSavingProfile ? (
+                                      <Loader2 className="spin" aria-hidden="true" />
+                                    ) : (
+                                      <Save aria-hidden="true" />
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="icon-button"
+                                    onClick={cancelEditingProfileName}
+                                    disabled={isSavingProfile}
+                                    title={t.cancel}
+                                    aria-label={t.cancel}
+                                  >
+                                    <X aria-hidden="true" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="profile-name-display">
+                                <strong>{profileDisplayName}</strong>
+                                <button
+                                  type="button"
+                                  className="icon-button"
+                                  onClick={() => startEditingProfileName(userProfile)}
+                                  disabled={isSavingProfile || isDeletingProfile}
+                                  title={t.editName}
+                                  aria-label={t.editName}
+                                >
+                                  <Edit3 aria-hidden="true" />
+                                </button>
+                              </div>
+                            )}
                             {isCurrentProfile && <span>{t.thisIsYou}</span>}
                             {userProfile.email && <small>{userProfile.email}</small>}
                             <small>{userProfile.id}</small>
@@ -3120,10 +3345,8 @@ function App() {
                                   event.target.value as Profile['role'],
                                 )
                               }
-                              disabled={isCurrentProfile || savingProfileId === userProfile.id}
-                              aria-label={t.changePermissionFor(
-                                getProfileDisplayName(userProfile, t.noName),
-                              )}
+                              disabled={isCurrentProfile || isSavingProfile || isDeletingProfile}
+                              aria-label={t.changePermissionFor(profileDisplayName)}
                             >
                               {memberRoles.map((role) => (
                                 <option key={role} value={role}>
@@ -3138,6 +3361,24 @@ function App() {
                         </td>
                         <td>{formatProfileDate(userProfile.created_at, language)}</td>
                         <td>{formatProfileDate(userProfile.updated_at, language)}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button
+                              type="button"
+                              className="icon-button danger"
+                              onClick={() => void deleteProfile(userProfile)}
+                              disabled={isCurrentProfile || isSavingProfile || isDeletingProfile}
+                              title={isCurrentProfile ? t.ownDeleteBlocked : t.delete}
+                              aria-label={isCurrentProfile ? t.ownDeleteBlocked : t.delete}
+                            >
+                              {isDeletingProfile ? (
+                                <Loader2 className="spin" aria-hidden="true" />
+                              ) : (
+                                <Trash2 aria-hidden="true" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}

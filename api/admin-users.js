@@ -4,6 +4,8 @@ const profileColumns = 'id, email, full_name, role, created_at, updated_at'
 const fallbackProfileColumns = 'id, full_name, role, created_at, updated_at'
 const allowedRoles = new Set(['admin', 'manager', 'member'])
 
+const stripOuterWhitespace = (value) => value.replace(/^\s+|\s+$/g, '')
+
 const sendJson = (response, status, body) => {
   response.status(status).json(body)
 }
@@ -127,13 +129,18 @@ const upsertProfile = async (adminClient, profile) => {
 }
 
 const ensureRequesterProfile = async (adminClient, user) => {
+  const { data: existingProfile } = await adminClient
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle()
   const fullName =
     typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : null
 
   await upsertProfile(adminClient, {
     id: user.id,
     email: user.email ?? null,
-    full_name: fullName,
+    full_name: existingProfile?.full_name ?? fullName,
     role: 'admin',
   })
 }
@@ -155,6 +162,17 @@ const getAuthUserEmails = async (adminClient) => {
   }
 
   return emails
+}
+
+const getAuthUserEmail = async (adminClient, profileId) => {
+  const {
+    data: { user },
+    error,
+  } = await adminClient.auth.admin.getUserById(profileId)
+
+  if (error || !user?.email) return null
+
+  return user.email
 }
 
 const listProfiles = async (adminClient) => {
@@ -186,35 +204,65 @@ const listProfiles = async (adminClient) => {
   }))
 }
 
-const updateProfileRole = async (adminClient, profileId, role) => {
+const updateProfile = async (adminClient, profileId, updates) => {
+  const profileUpdate = {}
+  const hasFullName = typeof updates.fullName === 'string'
+  const hasRole = typeof updates.role === 'string'
+
+  if (hasFullName) {
+    profileUpdate.full_name = stripOuterWhitespace(updates.fullName)
+  }
+
+  if (hasRole) {
+    profileUpdate.role = updates.role
+  }
+
   const { data, error } = await adminClient
     .from('profiles')
-    .update({ role })
+    .update(profileUpdate)
     .eq('id', profileId)
     .select(profileColumns)
     .single()
 
-  if (!error) return data
+  if (!error) {
+    if (hasFullName) {
+      await adminClient.auth.admin.updateUserById(profileId, {
+        user_metadata: {
+          full_name: profileUpdate.full_name,
+        },
+      })
+    }
+
+    return data
+  }
   if (!isMissingEmailColumnError(error)) throw error
 
   const { data: fallbackData, error: fallbackError } = await adminClient
     .from('profiles')
-    .update({ role })
+    .update(profileUpdate)
     .eq('id', profileId)
     .select(fallbackProfileColumns)
     .single()
 
   if (fallbackError) throw fallbackError
 
+  if (hasFullName) {
+    await adminClient.auth.admin.updateUserById(profileId, {
+      user_metadata: {
+        full_name: profileUpdate.full_name,
+      },
+    })
+  }
+
   return {
     ...fallbackData,
-    email: null,
+    email: await getAuthUserEmail(adminClient, profileId),
   }
 }
 
 export default async function handler(request, response) {
-  if (!['GET', 'POST', 'PATCH'].includes(request.method)) {
-    response.setHeader('Allow', 'GET, POST, PATCH')
+  if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(request.method)) {
+    response.setHeader('Allow', 'GET, POST, PATCH, DELETE')
     sendJson(response, 405, { error: 'Metodo nao permitido.' })
     return
   }
@@ -237,14 +285,76 @@ export default async function handler(request, response) {
 
     if (request.method === 'PATCH') {
       const profileId = String(body.profileId ?? '')
-      const role = String(body.role ?? '')
+      const role = typeof body.role === 'string' ? String(body.role) : ''
+      const fullName = typeof body.fullName === 'string' ? stripOuterWhitespace(body.fullName) : null
+      const updates = {}
 
-      if (!profileId || !allowedRoles.has(role)) {
-        sendJson(response, 400, { error: 'Utilizador ou permissao invalida.' })
+      if (!profileId) {
+        sendJson(response, 400, { error: 'Utilizador invalido.' })
         return
       }
 
-      sendJson(response, 200, { profile: await updateProfileRole(adminClient, profileId, role) })
+      if (role) {
+        if (!allowedRoles.has(role)) {
+          sendJson(response, 400, { error: 'Permissao invalida.' })
+          return
+        }
+
+        if (profileId === user.id) {
+          sendJson(response, 400, { error: 'Nao podes alterar a permissao da tua propria conta.' })
+          return
+        }
+
+        updates.role = role
+      }
+
+      if (fullName !== null) {
+        if (!fullName) {
+          sendJson(response, 400, { error: 'O nome e obrigatorio.' })
+          return
+        }
+
+        updates.fullName = fullName
+      }
+
+      if (!updates.role && !updates.fullName) {
+        sendJson(response, 400, { error: 'Nao ha alteracoes para guardar.' })
+        return
+      }
+
+      sendJson(response, 200, { profile: await updateProfile(adminClient, profileId, updates) })
+      return
+    }
+
+    if (request.method === 'DELETE') {
+      const profileId = String(body.profileId ?? '')
+
+      if (!profileId) {
+        sendJson(response, 400, { error: 'Utilizador invalido.' })
+        return
+      }
+
+      if (profileId === user.id) {
+        sendJson(response, 400, { error: 'Nao podes eliminar a tua propria conta.' })
+        return
+      }
+
+      const { error: deleteUserError } = await adminClient.auth.admin.deleteUser(profileId)
+
+      if (deleteUserError) {
+        throw deleteUserError
+      }
+
+      const { error: deleteProfileError } = await adminClient
+        .from('profiles')
+        .delete()
+        .eq('id', profileId)
+
+      if (deleteProfileError) {
+        throw deleteProfileError
+      }
+
+      sendJson(response, 200, { ok: true })
       return
     }
 

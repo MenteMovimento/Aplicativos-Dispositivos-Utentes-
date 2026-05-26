@@ -17,7 +17,7 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
 - Importacao e exportacao CSV compativel com Google Sheets.
 - Contas autenticadas conseguem gerir dispositivos.
-- Area de utilizadores para criar contas e gerir permissoes.
+- Area de utilizadores para criar contas, alterar nomes, eliminar acessos e gerir permissoes.
 
 ## Google Sheets
 

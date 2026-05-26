@@ -60,8 +60,10 @@
 3. Em `Criar utilizador`, preenche nome, email e palavra-passe temporaria.
 4. Clica em `Criar utilizador` e entrega o email/palavra-passe ao colega.
 5. A conta nova fica automaticamente como `Administrador`.
-6. Na tabela de utilizadores, podes mudar a permissao mais tarde.
-7. A tua propria permissao fica bloqueada para evitares perder acesso ao painel.
+6. Na tabela de utilizadores, usa o lapis para alterar o nome.
+7. Usa o seletor para mudar a permissao mais tarde.
+8. Usa o lixo vermelho para eliminar uma conta que ja nao deve aceder ao site.
+9. Nao podes eliminar a tua propria conta nem alterar a tua propria permissao, para evitares perder acesso ao painel.
 
 ## 9. Ativar anexos e historico no Supabase
 
