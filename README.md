@@ -4,10 +4,10 @@ Repositorio com os aplicativos internos da MenteMovimento.
 
 ## Aplicacoes
 
-- `.`: Gestor de dispositivos em React/Vite, preparado para Vercel e Supabase.
-- `apps/utentes`: Gestor de utentes em Python, preservado do projeto `Utentes-MenteMovimento`.
+- `.`: site principal em React/Vite, preparado para Vercel e Supabase, com areas de `Dispositivos`, `Utentes`, `Estatisticas` e `Utilizadores`.
+- `apps/utentes`: versao Python original do gestor de utentes, preservada como referencia do projeto `Utentes-MenteMovimento`.
 
-O gestor de dispositivos continua na raiz para nao alterar o deploy atual da Vercel. O gestor de utentes fica separado para manter o layout, ficheiros e funcionamento original sem desformatar.
+O site principal fica na raiz para a Vercel publicar tudo como uma unica aplicacao. A pasta `apps/utentes` mantem a versao Python original sem desformatar, mas a area de utentes usada no site esta integrada no React.
 
 ## Funcionalidades do gestor de dispositivos
 
@@ -24,6 +24,7 @@ O gestor de dispositivos continua na raiz para nao alterar o deploy atual da Ver
 - Campos principais: nome, numero de serie, modelo, local, estado e notas.
 - Importacao e exportacao CSV compativel com Google Sheets.
 - Contas autenticadas conseguem gerir dispositivos.
+- Area integrada de utentes com criacao, pesquisa, edicao e remocao.
 - Area de utilizadores para criar contas, alterar nomes, eliminar acessos e gerir permissoes.
 
 ## Funcionalidades do gestor de utentes

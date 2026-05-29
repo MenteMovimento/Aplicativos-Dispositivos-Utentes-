@@ -771,6 +771,7 @@ textarea:focus {
 .form-panel,
 .list-panel,
 .users-panel,
+.utentes-page,
 .stats-page {
   padding: 18px;
 }
@@ -1277,6 +1278,49 @@ tbody tr:last-child td {
   color: var(--brand-blue);
 }
 
+.utentes-page {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-soft);
+}
+
+.utentes-workspace {
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.utente-form-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.utente-form-panel .primary-action {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.utentes-list-panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.utentes-table {
+  min-width: 860px;
+}
+
+.utentes-table th:first-child,
+.utentes-table td:first-child {
+  width: 30%;
+}
+
 .users-note svg {
   flex: 0 0 auto;
   width: 20px;
@@ -1570,7 +1614,8 @@ tbody tr:last-child td {
     padding: 18px;
   }
 
-  .workspace {
+  .workspace,
+  .utentes-workspace {
     grid-template-columns: 1fr;
   }
 
@@ -1589,7 +1634,8 @@ tbody tr:last-child td {
   .auth-panel,
   .form-panel,
   .list-panel,
-  .users-panel {
+  .users-panel,
+  .utentes-page {
     padding: 18px;
   }
 
@@ -1654,7 +1700,7 @@ tbody tr:last-child td {
   .view-tabs {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .stats-grid {
@@ -1662,6 +1708,7 @@ tbody tr:last-child td {
   }
 
   .device-form,
+  .utentes-workspace,
   .user-create-form,
   .filters-row,
   .analytics-grid,

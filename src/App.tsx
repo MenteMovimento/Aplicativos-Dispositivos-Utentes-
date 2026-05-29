@@ -44,6 +44,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { BrandLogo } from './components/BrandLogo'
+import { UtentesPanel } from './components/UtentesPanel'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import {
   csvRowToDeviceForm,
@@ -555,6 +556,7 @@ const translations = {
     total: 'Total',
     updatePermission: 'Alterar permissao',
     updated: 'Atualizado',
+    utentes: 'Utentes',
     users: 'Utilizadores',
     usersNote:
       'Cria utilizadores nesta area. Todas as contas novas ficam como Administrador e prontas para entrar com a palavra-passe definida.',
@@ -702,6 +704,7 @@ const translations = {
     total: 'Total',
     updatePermission: 'Change permission',
     updated: 'Updated',
+    utentes: 'Service users',
     users: 'Users',
     usersNote:
       'Create users in this area. All new accounts are Administrators and ready to sign in with the defined password.',
@@ -975,7 +978,7 @@ function App() {
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
   const [sortColumn, setSortColumn] = useState<SortColumnKey>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [activeView, setActiveView] = useState<'devices' | 'users' | 'stats'>('devices')
+  const [activeView, setActiveView] = useState<'devices' | 'utentes' | 'users' | 'stats'>('devices')
   const [historyEntries, setHistoryEntries] = useState<DeviceHistoryEntry[]>([])
   const [attachments, setAttachments] = useState<DeviceAttachment[]>([])
   const [isLoadingDeviceExtras, setIsLoadingDeviceExtras] = useState(false)
@@ -2565,6 +2568,14 @@ function App() {
           </button>
           <button
             type="button"
+            className={selectedView === 'utentes' ? 'active' : ''}
+            onClick={() => setActiveView('utentes')}
+          >
+            <UsersRound aria-hidden="true" />
+            {t.utentes}
+          </button>
+          <button
+            type="button"
             className={selectedView === 'stats' ? 'active' : ''}
             onClick={() => setActiveView('stats')}
           >
@@ -3064,6 +3075,8 @@ function App() {
         </section>
       </div>
         </>
+      ) : selectedView === 'utentes' ? (
+        <UtentesPanel session={session} isDemoMode={isDemoMode} language={language} />
       ) : selectedView === 'stats' ? (
         <section className="stats-page" aria-labelledby="stats-title">
           <div className="section-heading">

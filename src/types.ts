@@ -47,6 +47,35 @@ export type DeviceAttachment = {
   created_at: string
 }
 
+export type Utente = {
+  id: number
+  nome: string
+  data_nascimento: string | null
+  telefone: string | null
+  email: string | null
+  morada: string | null
+  numero_utente: string | null
+  nif: string | null
+  contacto_emergencia: string | null
+  estado: string
+  observacoes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type UtenteForm = {
+  nome: string
+  data_nascimento: string
+  telefone: string
+  email: string
+  morada: string
+  numero_utente: string
+  nif: string
+  contacto_emergencia: string
+  estado: string
+  observacoes: string
+}
+
 export type RepairDetails = {
   entry_date: string
   brand: string
