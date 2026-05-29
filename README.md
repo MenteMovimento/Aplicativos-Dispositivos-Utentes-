@@ -1,8 +1,15 @@
-# Gestor de dispositivos Mentemovimento
+# Aplicativos MenteMovimento
 
-Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes e base de dados em Supabase.
+Repositorio com os aplicativos internos da MenteMovimento.
 
-## Funcionalidades
+## Aplicacoes
+
+- `.`: Gestor de dispositivos em React/Vite, preparado para Vercel e Supabase.
+- `apps/utentes`: Gestor de utentes em Python, preservado do projeto `Utentes-MenteMovimento`.
+
+O gestor de dispositivos continua na raiz para nao alterar o deploy atual da Vercel. O gestor de utentes fica separado para manter o layout, ficheiros e funcionamento original sem desformatar.
+
+## Funcionalidades do gestor de dispositivos
 
 - Login e criacao de conta com Supabase Auth.
 - Mensagens amigaveis para limite de emails e cooldown para reenviar confirmacao.
@@ -18,6 +25,16 @@ Aplicacao web para gerir dispositivos da associacao com autenticacao, permissoes
 - Importacao e exportacao CSV compativel com Google Sheets.
 - Contas autenticadas conseguem gerir dispositivos.
 - Area de utilizadores para criar contas, alterar nomes, eliminar acessos e gerir permissoes.
+
+## Funcionalidades do gestor de utentes
+
+O projeto em `apps/utentes` inclui:
+
+- Login com perfis de `Administrador` e `Utilizador`.
+- Criar, pesquisar, ver, editar e eliminar utentes.
+- Formularios de referenciacao, emergencia, inscricao, diagnostico, atendimentos e protecao de dados.
+- Genograma, ecomapa, anexos PDF, historico, tema claro/escuro e idiomas PT/EN.
+- Suporte a SQLite local ou Supabase com `apps/utentes/supabase_schema.sql`.
 
 ## Google Sheets
 
@@ -36,6 +53,8 @@ Na importacao, o `Numero de serie` e usado para atualizar dispositivos existente
 Consulta `MANUAL.md` ou usa o botao `Manual` dentro da aplicacao.
 
 ## Configurar Supabase
+
+### Dispositivos
 
 1. Entra no teu projeto Supabase.
 2. Abre `SQL Editor`.
@@ -68,12 +87,45 @@ where id = 'ID_DO_UTILIZADOR';
 
 A chave `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas na Vercel ou no ambiente do servidor. Nunca uses essa chave com prefixo `VITE_`.
 
+### Utentes
+
+Para usar Supabase no gestor de utentes:
+
+1. Abre `SQL Editor` no Supabase.
+2. Cola e executa `apps/utentes/supabase_schema.sql`.
+3. Copia `apps/utentes/.env.example` para `apps/utentes/.env`.
+4. Preenche:
+
+```env
+SUPABASE_URL=https://o-teu-projeto.supabase.co
+SUPABASE_SECRET_KEY=a_tua_service_role_ou_secret_key
+SUPABASE_BUCKET=documentos-utentes
+```
+
+Sem estas variaveis, o gestor de utentes corre em SQLite local e cria `apps/utentes/utentes.db`.
+
 ## Executar localmente
+
+Gestor de dispositivos:
 
 ```bash
 npm install
 npm run dev
 ```
+
+Gestor de utentes:
+
+```bash
+npm run utentes:dev
+```
+
+ou:
+
+```bash
+python apps/utentes/app.py
+```
+
+Depois abre `http://127.0.0.1:8000`.
 
 ## Publicar na Vercel
 
@@ -104,6 +156,7 @@ git push -u origin main
 
 ```bash
 npm run dev
+npm run utentes:dev
 npm run build
 npm run lint
 ```
