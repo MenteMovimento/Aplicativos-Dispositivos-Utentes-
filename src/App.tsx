@@ -71,8 +71,25 @@ const deviceStatuses: DeviceStatus[] = ['active', 'maintenance', 'retired']
 const memberRoles: Profile['role'][] = ['admin', 'manager', 'member']
 type AppLanguage = 'pt' | 'en'
 type AppTheme = 'light' | 'dark'
+type AppView = 'devices' | 'utentes' | 'stats' | 'users'
 type SortColumnKey = (typeof repairTableColumns)[number]['key']
 type SortDirection = 'asc' | 'desc'
+
+const viewHashes: Record<AppView, string> = {
+  devices: '#dispositivos',
+  utentes: '#utentes',
+  stats: '#estatisticas',
+  users: '#utilizadores',
+}
+
+const getViewFromHash = (): AppView => {
+  const hash = window.location.hash.replace(/^#/, '').toLowerCase()
+
+  if (hash === 'utentes') return 'utentes'
+  if (hash === 'estatisticas' || hash === 'stats') return 'stats'
+  if (hash === 'utilizadores' || hash === 'users') return 'users'
+  return 'devices'
+}
 
 const statusLabels: Record<AppLanguage, Record<DeviceStatus, string>> = {
   pt: {
@@ -522,6 +539,8 @@ const translations = {
     help: 'Ajuda',
     history: 'Historico',
     importCsv: 'Importar CSV',
+    moduleHint: 'Escolhe a area que queres usar.',
+    moduleQuickAccess: 'Acesso rapido',
     language: 'Idioma',
     lightTheme: 'Ativar tema claro',
     loading: 'A carregar',
@@ -563,6 +582,7 @@ const translations = {
     updated: 'Atualizado',
     utentes: 'Utentes',
     users: 'Utilizadores',
+    usersModuleHint: 'Cria contas, altera nomes, permissoes e acessos.',
     usersNote:
       'Cria utilizadores nesta area. Todas as contas novas ficam como Administrador e prontas para entrar com a palavra-passe definida.',
     usersNoteCreate: 'As novas contas ficam automaticamente com acesso de administrador.',
@@ -670,6 +690,8 @@ const translations = {
     help: 'Help',
     history: 'History',
     importCsv: 'Import CSV',
+    moduleHint: 'Choose the area you want to use.',
+    moduleQuickAccess: 'Quick access',
     language: 'Language',
     lightTheme: 'Turn on light theme',
     loading: 'Loading',
@@ -711,6 +733,7 @@ const translations = {
     updated: 'Updated',
     utentes: 'Service users',
     users: 'Users',
+    usersModuleHint: 'Create accounts, change names, permissions and access.',
     usersNote:
       'Create users in this area. All new accounts are Administrators and ready to sign in with the defined password.',
     usersNoteCreate: 'New accounts automatically get administrator access.',
@@ -983,7 +1006,9 @@ function App() {
   const [statusFilter, setStatusFilter] = useState<'all' | DeviceStatus>('all')
   const [sortColumn, setSortColumn] = useState<SortColumnKey>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [activeView, setActiveView] = useState<'devices' | 'utentes' | 'users' | 'stats'>('devices')
+  const [activeView, setActiveView] = useState<AppView>(() =>
+    typeof window === 'undefined' ? 'devices' : getViewFromHash(),
+  )
   const [historyEntries, setHistoryEntries] = useState<DeviceHistoryEntry[]>([])
   const [attachments, setAttachments] = useState<DeviceAttachment[]>([])
   const [isLoadingDeviceExtras, setIsLoadingDeviceExtras] = useState(false)
@@ -1008,6 +1033,12 @@ function App() {
   const localizedStatusLabels = statusLabels[language]
   const manualSections = manualSectionsByLanguage[language]
   const translateRepairLabel = (label: string) => repairLabelTranslations[language][label] ?? label
+  const moduleLinks = [
+    { view: 'devices' as AppView, label: t.devices, icon: ClipboardList },
+    { view: 'utentes' as AppView, label: t.utentes, icon: UsersRound },
+    { view: 'stats' as AppView, label: t.statistics, icon: BarChart3 },
+    { view: 'users' as AppView, label: t.users, icon: ShieldCheck },
+  ]
   const selectedSortColumn =
     repairTableColumns.find((column) => column.key === sortColumn) ?? repairTableColumns[0]
 
@@ -1124,6 +1155,14 @@ function App() {
     }
   }, [canManageUsers, language, loadProfiles])
 
+  const navigateToView = useCallback((view: AppView) => {
+    setActiveView(view)
+
+    if (window.location.hash !== viewHashes[view]) {
+      window.location.hash = viewHashes[view]
+    }
+  }, [])
+
   const loadDeviceExtras = useCallback(
     async (deviceId: string) => {
       if (isDemoMode || !supabase) {
@@ -1239,6 +1278,31 @@ function App() {
       subscription.unsubscribe()
     }
   }, [refreshData])
+
+  useEffect(() => {
+    const syncViewFromHash = () => {
+      window.setTimeout(() => setActiveView(getViewFromHash()), 0)
+    }
+
+    window.addEventListener('hashchange', syncViewFromHash)
+    syncViewFromHash()
+
+    return () => {
+      window.removeEventListener('hashchange', syncViewFromHash)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedView !== 'users') return undefined
+
+    const timer = window.setTimeout(() => {
+      void refreshUsers()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [refreshUsers, selectedView])
 
   useEffect(() => {
     const timer = window.setInterval(() => setAuthClock(Date.now()), 1000)
@@ -2562,46 +2626,30 @@ function App() {
       )}
 
       {canManageUsers && (
-        <nav className="view-tabs" aria-label={t.managementAreas}>
-          <button
-            type="button"
-            className={selectedView === 'devices' ? 'active' : ''}
-            onClick={() => setActiveView('devices')}
-          >
-            <ClipboardList aria-hidden="true" />
-            {t.devices}
-          </button>
-          <button
-            type="button"
-            className={selectedView === 'utentes' ? 'active' : ''}
-            onClick={() => setActiveView('utentes')}
-          >
-            <UsersRound aria-hidden="true" />
-            {t.utentes}
-          </button>
-          <button
-            type="button"
-            className={selectedView === 'stats' ? 'active' : ''}
-            onClick={() => setActiveView('stats')}
-          >
-            <BarChart3 aria-hidden="true" />
-            {t.statistics}
-          </button>
-          <button
-            type="button"
-            className={selectedView === 'users' ? 'active' : ''}
-            onClick={() => {
-              setActiveView('users')
-              void refreshUsers()
-            }}
-          >
-            <UsersRound aria-hidden="true" />
-            {t.users}
-          </button>
-        </nav>
+        <section className="module-navbar" aria-label={t.managementAreas}>
+          <div>
+            <strong>{t.managementAreas}</strong>
+            <p>{t.moduleHint}</p>
+          </div>
+          <nav className="view-tabs" aria-label={t.managementAreas}>
+            {moduleLinks.map(({ view, label, icon: Icon }) => (
+              <button
+                key={view}
+                type="button"
+                className={selectedView === view ? 'active' : ''}
+                onClick={() => navigateToView(view)}
+                aria-current={selectedView === view ? 'page' : undefined}
+              >
+                <Icon aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </nav>
+        </section>
       )}
 
-      {selectedView === 'devices' ? (
+      <section className="module-content" id={selectedView}>
+        {selectedView === 'devices' ? (
         <>
       <section className="stats-grid" aria-label={t.devicesSummary}>
         <article>
@@ -3416,6 +3464,29 @@ function App() {
             </div>
           )}
         </section>
+      )}
+      </section>
+
+      {canManageUsers && (
+        <footer className="app-footer">
+          <div>
+            <strong>{t.moduleQuickAccess}</strong>
+            <p>{t.moduleHint}</p>
+          </div>
+          <nav className="footer-nav" aria-label={t.moduleQuickAccess}>
+            {moduleLinks.map(({ view, label, icon: Icon }) => (
+              <button
+                key={view}
+                type="button"
+                className={selectedView === view ? 'active' : ''}
+                onClick={() => navigateToView(view)}
+              >
+                <Icon aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </nav>
+        </footer>
       )}
 
       {manualDialog}
