@@ -1,6 +1,8 @@
 import {
   type ChangeEvent,
   type FormEvent,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -44,7 +46,6 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { BrandLogo } from './components/BrandLogo'
-import { UtentesPanel } from './components/UtentesPanel'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import {
   csvRowToDeviceForm,
@@ -61,6 +62,10 @@ import {
 } from './repairInventory'
 import type { Device, DeviceForm, DeviceStatus, RepairColumnKey, Profile } from './types'
 import type { DeviceAttachment, DeviceHistoryEntry } from './types'
+
+const UtentesPanel = lazy(() =>
+  import('./components/UtentesPanel').then((module) => ({ default: module.UtentesPanel })),
+)
 
 const deviceStatuses: DeviceStatus[] = ['active', 'maintenance', 'retired']
 const memberRoles: Profile['role'][] = ['admin', 'manager', 'member']
@@ -3076,7 +3081,18 @@ function App() {
       </div>
         </>
       ) : selectedView === 'utentes' ? (
-        <UtentesPanel session={session} isDemoMode={isDemoMode} language={language} />
+        <Suspense
+          fallback={
+            <section className="utentes-page">
+              <div className="loading-state">
+                <Loader2 className="spin" aria-hidden="true" />
+                {t.loading}
+              </div>
+            </section>
+          }
+        >
+          <UtentesPanel session={session} isDemoMode={isDemoMode} language={language} />
+        </Suspense>
       ) : selectedView === 'stats' ? (
         <section className="stats-page" aria-labelledby="stats-title">
           <div className="section-heading">
