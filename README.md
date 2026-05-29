@@ -69,6 +69,14 @@ VITE_SUPABASE_ANON_KEY=a_tua_chave_anon
 SUPABASE_SERVICE_ROLE_KEY=a_tua_chave_service_role
 ```
 
+Tambem podes usar os nomes novos da Supabase/Vercel:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://o-teu-projeto.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=a_tua_chave_publishable
+SUPABASE_SERVICE_ROLE_KEY=a_tua_chave_service_role
+```
+
 Todas as contas novas ficam automaticamente com perfil `admin`.
 
 Se usares confirmacao por email no Supabase Auth, o site mostra um botao `Reenviar confirmacao` com cooldown para evitar o erro `email rate limit exceeded`. Para testes em aula, podes desativar a confirmacao de email em `Authentication > Providers > Email`; para producao, o ideal e configurar SMTP proprio.
@@ -137,6 +145,14 @@ Depois abre `http://127.0.0.1:8000`.
 ```env
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+ou:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SERVICE_ROLE_KEY
 ```
 
